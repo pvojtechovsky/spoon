@@ -441,9 +441,13 @@ class JDTCommentBuilder {
 	 * @return the content of the comment
 	 */
 	private String getCommentContent(int start, int end) {
-		//skip comment prefix
-		start += 2;
-		return cleanComment(new String(contents, start, end - start));
+		StringBuilder stringBuilder = new StringBuilder();
+		for (int f = start + 2; f < end; f++) {
+			char content = contents[f];
+			stringBuilder.append(content);
+		}
+		String doc = stringBuilder.toString();
+		return cleanComment(doc);
 	}
 
 	public static String cleanComment(String comment) {
