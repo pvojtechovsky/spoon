@@ -18,6 +18,7 @@ package spoon.reflect.visitor.printer.change;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -26,6 +27,7 @@ import java.util.Set;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 
+import spoon.SpoonException;
 import spoon.experimental.modelobs.ChangeCollector;
 import spoon.reflect.cu.CompilationUnit;
 import spoon.reflect.cu.SourcePosition;
@@ -130,10 +132,26 @@ public abstract class SourcePositionUtils  {
 		}
 	}
 
+	enum FragmentKind {
+		/**
+		 * normal fragment without special handling
+		 */
+		NORMAL,
+		/**
+		 * a fragment, which contains a list of elements
+		 */
+		LIST,
+		/**
+		 * a fragment, which contains no model element, but contains separators or spaces.
+		 */
+		SEPARATOR
+	}
+
 	/**
 	 * Defines how to handle printing of related fragment
 	 */
 	static class FragmentDescriptor {
+		FragmentKind kind = FragmentKind.NORMAL;
 		/**
 		 * set of {@link CtRole}s, whose source code is contained in related {@link SourceFragment}.
 		 * For example when printing {@link CtClass}, then {@link SourceFragment} with roles=[CtRole.ANNOTATION, CtRole.MODIFIER]
@@ -226,6 +244,15 @@ public abstract class SourcePositionUtils  {
 			return this;
 		}
 
+		FragmentDescriptorBuilder list(CtRole role) {
+			if (descriptor.roles != null) {
+				throw new SpoonException("Cannot combine #role and #list");
+			}
+			descriptor.roles = Collections.singleton(role);
+			descriptor.kind = FragmentKind.LIST;
+			return this;
+		}
+
 		FragmentDescriptorBuilder startWhenKeyword(String...tokens) {
 			initTokenDetector(descriptor.startTokenDetector, "writeKeyword", tokens);
 			return this;
@@ -306,7 +333,7 @@ public abstract class SourcePositionUtils  {
 					//contains source code of elements on role TYPE_MEMBER
 					//and starts when TokenWriter is going to print separator '{'
 					//and ends when TokenWriter printed separator '}'
-					i -> i.role(CtRole.TYPE_MEMBER).startWhenSeparator("{").endWhenSeparator("}")),
+					i -> i.list(CtRole.TYPE_MEMBER).startWhenSeparator("{").endWhenSeparator("}")),
 			type(CtExecutable.class)
 			.fragment(FragmentType.MODIFIERS,
 					i -> i.role(CtRole.ANNOTATION, CtRole.MODIFIER))
@@ -318,6 +345,9 @@ public abstract class SourcePositionUtils  {
 					i -> i.role(CtRole.PARAMETER, CtRole.THROWN).startWhenSeparator("("))
 			.fragment(FragmentType.BODY,
 					i -> i.role(CtRole.BODY).startWhenSeparator("{").endWhenSeparator("}")),
+//			type(CtBlock.class)
+//			.fragment(FragmentType.MAIN_FRAGMENT,
+//					i -> i.list(CtRole.STATEMENT)),
 			type(CtVariable.class)
 			.fragment(FragmentType.MODIFIERS,
 					i -> i.role(CtRole.ANNOTATION, CtRole.MODIFIER))

@@ -20,5 +20,5 @@ package spoon.reflect.visitor.printer.change;
  * Represents type of {@link SourceFragment}
  */
 interface PrintAction {
-	void run() throws Exception;
+	void run();
 }
