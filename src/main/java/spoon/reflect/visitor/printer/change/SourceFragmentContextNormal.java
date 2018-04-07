@@ -14,6 +14,10 @@ class SourceFragmentContextNormal extends SourceFragmentContext {
 	private final ChangesAwareDefaultJavaPrettyPrinter printer;
 	private SourceFragment currentFragment;
 	private CtElement element;
+	/**
+	 * handles printing of lists of elements. E.g. type members of type.
+	 */
+	private SourceFragmentContext childContext;
 
 	SourceFragmentContextNormal(ChangesAwareDefaultJavaPrettyPrinter changesAwareDefaultJavaPrettyPrinter, CtElement element, SourceFragment rootFragment) {
 		super();
@@ -52,15 +56,14 @@ class SourceFragmentContextNormal extends SourceFragmentContext {
 				printer.mutableTokenWriter.setMuted(true);
 			} else {
 				//we are printing modified fragment.
+				printer.mutableTokenWriter.setMuted(false);
 				switch (currentFragment.fragmentDescriptor.kind) {
 				case NORMAL:
 					//Let it print normally
-					printer.mutableTokenWriter.setMuted(false);
 					break;
 				case LIST:
-					//we are printing list
-					//TODO
-					printer.mutableTokenWriter.setMuted(false);
+					//we are printing list, create a child context for the list
+					childContext = new SourceFragmentContextList(printer, element, currentFragment);
 					break;
 				default:
 					throw new SpoonException("Unexpected fragment kind " + currentFragment.fragmentDescriptor.kind);
@@ -84,27 +87,34 @@ class SourceFragmentContextNormal extends SourceFragmentContext {
 			//yes, the next fragment should be activated before printAction
 			nextFragment();
 		}
-		//run the print action, which we are listening for
-		printAction.run();
+		if (childContext != null) {
+			childContext.onTokenWriterToken(tokenWriterMethodName, token, printAction);
+		} else {
+			//run the print action, which we are listening for
+			printAction.run();
+		}
 		if (testFagmentDescriptor(currentFragment, fd -> fd.isTriggeredByToken(false, tokenWriterMethodName, token))) {
 			//yes, the next fragment should be activated before printAction
+			if (childContext != null) {
+				//notify childContext that it finished
+				childContext.onParentFinished();
+				childContext = null;
+			}
 			nextFragment();
 		}
 	}
 
 	@Override
-	void onScanRole(CtRole role, PrintAction printAction) {
+	void onScanElementOnRole(CtElement element, CtRole role, Runnable printAction) {
 		if (testFagmentDescriptor(getNextFragment(), fd -> fd.isStartedByScanRole(role))) {
 			//yes, the next fragment should be activated before printAction
 			nextFragment();
 		}
 		//run the print action, which we are listening for
-		try {
+		if (childContext != null) {
+			childContext.onScanElementOnRole(element, role, printAction);
+		} else {
 			printAction.run();
-		} catch (SpoonException e) {
-			throw (SpoonException) e;
-		} catch (Exception e) {
-			throw new SpoonException(e);
 		}
 //			{
 //				//check if current fragment has to be finished after this action
@@ -112,5 +122,11 @@ class SourceFragmentContextNormal extends SourceFragmentContext {
 //					nextFragment();
 //				}
 //			}
+	}
+
+	@Override
+	void onParentFinished() {
+		//we will see if it is true... I (Pavel) am not sure yet
+		throw new SpoonException("SourceFragmentContextNormal shouldn't be used as child context");
 	}
 }

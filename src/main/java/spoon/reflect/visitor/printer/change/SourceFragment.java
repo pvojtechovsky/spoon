@@ -110,11 +110,20 @@ public class SourceFragment  {
 
 	@Override
 	public String toString() {
+		return getSourceCode(getStart(), getEnd());
+	}
+
+	/**
+	 * @param start start offset
+	 * @param end end offset (after last element)
+	 * @return source code of this Fragment between start/end offsets
+	 */
+	public String getSourceCode(int start, int end) {
 		CompilationUnit cu = sourcePosition.getCompilationUnit();
 		if (cu != null) {
 			String src = cu.getOriginalSourceCode();
 			if (src != null) {
-				return src.substring(getStart(), getEnd());
+				return src.substring(start, end);
 			}
 		}
 		return null;
@@ -417,6 +426,30 @@ public class SourceFragment  {
 	public SourceFragment getNextFragmentOfSameElement() {
 		if (getNextSibling() != null && getNextSibling().getElement() == element) {
 			return getNextSibling();
+		}
+		return null;
+	}
+	/**
+	 * @return source code of this fragment before the first child of this fragment.
+	 * null if there is no child
+	 */
+	public String getTextBeforeFirstChild() {
+		if (firstChild != null) {
+			return getSourceCode(getStart(), firstChild.getStart());
+		}
+		return null;
+	}
+	/**
+	 * @return source code of this fragment after the last child of this fragment
+	 * null if there is no child
+	 */
+	public String getTextAfterLastChild() {
+		SourceFragment lastChild = firstChild;
+		while (lastChild != null) {
+			if (lastChild.getNextSibling() == null) {
+				return getSourceCode(lastChild.getEnd(), getEnd());
+			}
+			lastChild = lastChild.getNextSibling();
 		}
 		return null;
 	}

@@ -140,11 +140,7 @@ public abstract class SourcePositionUtils  {
 		/**
 		 * a fragment, which contains a list of elements
 		 */
-		LIST,
-		/**
-		 * a fragment, which contains no model element, but contains separators or spaces.
-		 */
-		SEPARATOR
+		LIST
 	}
 
 	/**
@@ -225,6 +221,16 @@ public abstract class SourcePositionUtils  {
 		 */
 		boolean isStartedByScanRole(CtRole role) {
 			return startScanRole.contains(role);
+		}
+
+		/**
+		 * @return {@link CtRole} of the list attribute handled by this fragment
+		 */
+		public CtRole getListRole() {
+			if (kind != FragmentKind.LIST || roles == null || roles.size() != 1) {
+				throw new SpoonException("This fragment does not have list role");
+			}
+			return roles.iterator().next();
 		}
 	}
 

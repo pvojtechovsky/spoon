@@ -26,6 +26,7 @@ import java.util.Deque;
 import spoon.SpoonException;
 import spoon.compiler.Environment;
 import spoon.experimental.modelobs.ChangeCollector;
+import spoon.reflect.code.CtComment;
 import spoon.reflect.declaration.CtElement;
 import spoon.reflect.path.CtRole;
 import spoon.reflect.visitor.DefaultJavaPrettyPrinter;
@@ -65,29 +66,51 @@ public class ChangesAwareDefaultJavaPrettyPrinter extends DefaultJavaPrettyPrint
 				new InvocationHandler() {
 					@Override
 					public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+						Runnable printAction = () -> {
+							try {
+								method.invoke(tokenWriter, args);
+							} catch (IllegalAccessException | IllegalArgumentException e) {
+								throw new SpoonException("Cannot invoke TokenWriter method", e);
+							} catch (InvocationTargetException e) {
+								if (e.getTargetException() instanceof RuntimeException) {
+									throw (RuntimeException) e.getTargetException();
+								}
+								throw new SpoonException("Invokation target exception TokenWriter method", e);
+							}
+						};
 						if (method.getName().startsWith("write")) {
 							Class<?>[] paramTypes = method.getParameterTypes();
-							if (paramTypes.length == 1 && paramTypes[0] == String.class) {
-								onTokenWriterWrite(method.getName(), (String) args[0], () -> {
-									try {
-										method.invoke(tokenWriter, args);
-									} catch (IllegalAccessException | IllegalArgumentException e) {
-										throw new SpoonException("Cannot invoke TokenWriter method", e);
-									} catch (InvocationTargetException e) {
-										if (e.getTargetException() instanceof RuntimeException) {
-											throw (RuntimeException) e.getTargetException();
-										}
-										throw new SpoonException("Invokation target exception TokenWriter method", e);
-									}
-								});
+							if (paramTypes.length == 1) {
+								if (paramTypes[0] == String.class) {
+									//writeXxx(String)
+									onTokenWriterWrite(method.getName(), (String) args[0], null, printAction);
+								} else if (paramTypes[0] == CtComment.class) {
+									//writeComment(CtComment)
+									onTokenWriterWrite(method.getName(), null, (CtComment) args[0], printAction);
+								}
+								return proxy;
+							} else if (paramTypes.length == 0) {
+								//writeSpace() and writeln()
+								String token = method.getName().equals("writeSpace") ? " " : "\n";
+								onTokenWriterWrite(method.getName(), token, null, printAction);
 								return proxy;
 							}
 						}
-						Object result = method.invoke(tokenWriter, args);
-						if (method.getReturnType() == TokenWriter.class) {
+						if (method.getName().endsWith("Tab")) {
+							//incTab(), decTab()
+							onTokenWriterWrite(method.getName(), (String) null, null, printAction);
 							return proxy;
 						}
-						return result;
+						if (method.getName().equals("getPrinterHelper") || method.getName().equals("reset")) {
+							try {
+								return method.invoke(tokenWriter, args);
+							} catch (IllegalAccessException | IllegalArgumentException e) {
+								throw new SpoonException("Cannot invoke TokenWriter method", e);
+							} catch (InvocationTargetException e) {
+								throw e.getTargetException();
+							}
+						}
+						throw new SpoonException("Unexpected method TokenWriter#" + method.getName());
 					}
 				});
 	}
@@ -96,10 +119,11 @@ public class ChangesAwareDefaultJavaPrettyPrinter extends DefaultJavaPrettyPrint
 	 * Is called for each printed token
 	 * @param tokenWriterMethodName the name of {@link TokenWriter} method
 	 * @param token the actual token value
+	 * @param comment TODO
 	 * @param printAction the executor of the action, we are listening for.
 	 * @throws Exception
 	 */
-	protected void onTokenWriterWrite(String tokenWriterMethodName, String token, Runnable printAction) {
+	protected void onTokenWriterWrite(String tokenWriterMethodName, String token, CtComment comment, Runnable printAction) {
 		SourceFragmentContext sfc = sourceFragmentContextStack.peek();
 		if (sfc != null) {
 			sfc.onTokenWriterToken(tokenWriterMethodName, token, printAction);
@@ -116,7 +140,7 @@ public class ChangesAwareDefaultJavaPrettyPrinter extends DefaultJavaPrettyPrint
 		if (sfc != null) {
 			CtRole role = element.getRoleInParent();
 			if (role != null) {
-				sfc.onScanRole(role, () -> scanInternal(element));
+				sfc.onScanElementOnRole(element, role, () -> scanInternal(element));
 				return this;
 			}
 		}
