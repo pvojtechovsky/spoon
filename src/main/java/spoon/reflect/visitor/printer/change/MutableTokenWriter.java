@@ -26,20 +26,20 @@ import spoon.reflect.visitor.TokenWriter;
  * all tokens to delegate, until {@link #setMuted(boolean)} is called with true
  * Then all tokens are ignored.
  */
-public class MutableTokenWriter implements TokenWriter {
+class MutableTokenWriter implements TokenWriter {
 	private final TokenWriter delegate;
 	private boolean muted = false;
 
-	public MutableTokenWriter(Environment env) {
+	MutableTokenWriter(Environment env) {
 		super();
 		this.delegate = new DefaultTokenWriter(new DirectPrinterHelper(env));;
 	}
 
-	public boolean isMuted() {
+	boolean isMuted() {
 		return muted;
 	}
 
-	public void setMuted(boolean muted) {
+	void setMuted(boolean muted) {
 		this.muted = muted;
 	}
 
