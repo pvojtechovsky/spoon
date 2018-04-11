@@ -11,7 +11,7 @@ class SourceFragmentContextNormal extends SourceFragmentContext {
 	/**
 	 *
 	 */
-	private final ChangesAwareDefaultJavaPrettyPrinter printer;
+	private final MutableTokenWriter mutableTokenWriter;
 	private SourceFragment currentFragment;
 	private CtElement element;
 	/**
@@ -19,16 +19,16 @@ class SourceFragmentContextNormal extends SourceFragmentContext {
 	 */
 	private SourceFragmentContext childContext;
 
-	SourceFragmentContextNormal(ChangesAwareDefaultJavaPrettyPrinter changesAwareDefaultJavaPrettyPrinter, CtElement element, SourceFragment rootFragment) {
+	SourceFragmentContextNormal(MutableTokenWriter mutableTokenWriter, CtElement element, SourceFragment rootFragment) {
 		super();
-		printer = changesAwareDefaultJavaPrettyPrinter;
+		this.mutableTokenWriter = mutableTokenWriter;
 		this.element = element;
 		this.currentFragment = rootFragment;
 		handlePrinting();
 	}
 
-	SourceFragmentContextNormal(ChangesAwareDefaultJavaPrettyPrinter changesAwareDefaultJavaPrettyPrinter) {
-		printer = changesAwareDefaultJavaPrettyPrinter;
+	SourceFragmentContextNormal() {
+		mutableTokenWriter = null;
 		currentFragment = null;
 	}
 
@@ -52,18 +52,18 @@ class SourceFragmentContextNormal extends SourceFragmentContext {
 			if (currentFragment.isModified() == false) {
 				//we are going to print not modified fragment
 				//print origin sources of this fragment directly
-				printer.mutableTokenWriter.getPrinterHelper().directPrint(currentFragment.toString());
-				printer.mutableTokenWriter.setMuted(true);
+				mutableTokenWriter.getPrinterHelper().directPrint(currentFragment.getSourceCode());
+				mutableTokenWriter.setMuted(true);
 			} else {
 				//we are printing modified fragment.
-				printer.mutableTokenWriter.setMuted(false);
+				mutableTokenWriter.setMuted(false);
 				switch (currentFragment.fragmentDescriptor.kind) {
 				case NORMAL:
 					//Let it print normally
 					break;
 				case LIST:
 					//we are printing list, create a child context for the list
-					childContext = new SourceFragmentContextList(printer, element, currentFragment);
+					childContext = new SourceFragmentContextList(mutableTokenWriter, element, currentFragment);
 					break;
 				default:
 					throw new SpoonException("Unexpected fragment kind " + currentFragment.fragmentDescriptor.kind);

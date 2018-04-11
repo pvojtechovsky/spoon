@@ -19,7 +19,7 @@ public class SourceFragmentTest {
 	@Test
 	public void testSourcePositionFragment() throws Exception {
 		SourcePosition sp = new SourcePositionImpl(null, 10, 20, null);
-		SourceFragment sf = new SourceFragment(null, sp);
+		SourceFragment sf = new SourceFragment(sp);
 		assertEquals(10, sf.getStart());
 		assertEquals(21, sf.getEnd());
 		assertSame(sp, sf.getSourcePosition());
@@ -30,7 +30,7 @@ public class SourceFragmentTest {
 	@Test
 	public void testDeclarationSourcePositionFragment() throws Exception {
 		SourcePosition sp = new DeclarationSourcePositionImpl(null, 100, 110, 90, 95, 90, 130, null);
-		SourceFragment sf = new SourceFragment(null, sp);
+		SourceFragment sf = new SourceFragment(sp);
 		assertEquals(90, sf.getStart());
 		assertEquals(131, sf.getEnd());
 		assertSame(sp, sf.getSourcePosition());
@@ -63,7 +63,7 @@ public class SourceFragmentTest {
 	@Test
 	public void testBodyHolderSourcePositionFragment() throws Exception {
 		SourcePosition sp = new BodyHolderSourcePositionImpl(null, 100, 110, 90, 95, 90, 130, 120, 130, null);
-		SourceFragment sf = new SourceFragment(null, sp);
+		SourceFragment sf = new SourceFragment(sp);
 		assertEquals(90, sf.getStart());
 		assertEquals(131, sf.getEnd());
 		assertSame(sp, sf.getSourcePosition());
@@ -158,6 +158,6 @@ public class SourceFragmentTest {
 	
 	
 	private SourceFragment createFragment(int start, int end) {
-		return new SourceFragment(null, new SourcePositionImpl(null, start, end - 1, null));
+		return new SourceFragment(new SourcePositionImpl(null, start, end - 1, null));
 	}
 }

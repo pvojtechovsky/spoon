@@ -293,9 +293,9 @@ public class CompilationUnitImpl implements CompilationUnit, FactoryAccessor {
 	public SourceFragment getRootSourceFragment() {
 		if (rootFragment == null) {
 			String originSourceCode = getOriginalSourceCode();
-			rootFragment = new SourceFragment(null, factory.createSourcePosition(this, 0, originSourceCode.length() - 1, getLineSeparatorPositions()));
+			rootFragment = new SourceFragment(factory.createSourcePosition(this, 0, originSourceCode.length() - 1, getLineSeparatorPositions()));
 			for (CtType<?> ctType : declaredTypes) {
-				rootFragment.addSourceFragments(ctType);
+				rootFragment.addTreeOfSourceFragmentsOfElement(ctType);
 			}
 		}
 		return rootFragment;

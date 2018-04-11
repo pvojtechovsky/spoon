@@ -29,15 +29,20 @@ class DirectPrinterHelper extends PrinterHelper {
 	}
 
 	/**
-	 * Prints `str` directly into output buffer ignoring any Environment rules.
-	 * @param str to be printed string
+	 * Prints `text` directly into output buffer ignoring any Environment rules.
+	 * @param text to be printed string
 	 */
-	void directPrint(String str) {
+	void directPrint(String text) {
 		autoWriteTabs();
-		sbf.append(str);
+		sbf.append(text);
 	}
 
-	public void setShouldWriteTabs(boolean shouldWriteTabs) {
+	/**
+	 * Allows to set the protected field of {@link PrinterHelper}.
+	 *
+	 * @param shouldWriteTabs true if we just printed EndOfLine and we should pring tabs if next character is not another EndOfLine
+	 */
+	void setShouldWriteTabs(boolean shouldWriteTabs) {
 		this.shouldWriteTabs = shouldWriteTabs;
 	}
 }

@@ -32,17 +32,24 @@ class MutableTokenWriter implements TokenWriter {
 
 	MutableTokenWriter(Environment env) {
 		super();
-		this.delegate = new DefaultTokenWriter(new DirectPrinterHelper(env));;
+		this.delegate = new DefaultTokenWriter(new DirectPrinterHelper(env));
 	}
 
+	/**
+	 * @return true if tokens are ignored. false if they are forwarded to `delegate`
+	 */
 	boolean isMuted() {
 		return muted;
 	}
 
+	/**
+	 * @param muted true if tokens are ignored. false if they are forwarded to `delegate`
+	 */
 	void setMuted(boolean muted) {
 		this.muted = muted;
 	}
 
+	@Override
 	public TokenWriter writeSeparator(String token) {
 		if (isMuted()) {
 			getPrinterHelper().setShouldWriteTabs(false);
@@ -51,6 +58,7 @@ class MutableTokenWriter implements TokenWriter {
 		delegate.writeSeparator(token);
 		return this;
 	}
+	@Override
 	public TokenWriter writeOperator(String token) {
 		if (isMuted()) {
 			getPrinterHelper().setShouldWriteTabs(false);
@@ -59,6 +67,7 @@ class MutableTokenWriter implements TokenWriter {
 		delegate.writeOperator(token);
 		return this;
 	}
+	@Override
 	public TokenWriter writeLiteral(String token) {
 		if (isMuted()) {
 			getPrinterHelper().setShouldWriteTabs(false);
@@ -67,6 +76,7 @@ class MutableTokenWriter implements TokenWriter {
 		delegate.writeLiteral(token);
 		return this;
 	}
+	@Override
 	public TokenWriter writeKeyword(String token) {
 		if (isMuted()) {
 			getPrinterHelper().setShouldWriteTabs(false);
@@ -75,6 +85,7 @@ class MutableTokenWriter implements TokenWriter {
 		delegate.writeKeyword(token);
 		return this;
 	}
+	@Override
 	public TokenWriter writeIdentifier(String token) {
 		if (isMuted()) {
 			getPrinterHelper().setShouldWriteTabs(false);
@@ -83,6 +94,7 @@ class MutableTokenWriter implements TokenWriter {
 		delegate.writeIdentifier(token);
 		return this;
 	}
+	@Override
 	public TokenWriter writeCodeSnippet(String token) {
 		if (isMuted()) {
 			getPrinterHelper().setShouldWriteTabs(false);
@@ -91,6 +103,7 @@ class MutableTokenWriter implements TokenWriter {
 		delegate.writeCodeSnippet(token);
 		return this;
 	}
+	@Override
 	public TokenWriter writeComment(CtComment comment) {
 		if (isMuted()) {
 			getPrinterHelper().setShouldWriteTabs(false);
@@ -99,6 +112,7 @@ class MutableTokenWriter implements TokenWriter {
 		delegate.writeComment(comment);
 		return this;
 	}
+	@Override
 	public TokenWriter writeln() {
 		if (isMuted()) {
 			getPrinterHelper().setShouldWriteTabs(true);
@@ -107,6 +121,7 @@ class MutableTokenWriter implements TokenWriter {
 		delegate.writeln();
 		return this;
 	}
+	@Override
 	public TokenWriter incTab() {
 		if (isMuted()) {
 			return this;
@@ -114,6 +129,7 @@ class MutableTokenWriter implements TokenWriter {
 		delegate.incTab();
 		return this;
 	}
+	@Override
 	public TokenWriter decTab() {
 		if (isMuted()) {
 			return this;
@@ -121,15 +137,18 @@ class MutableTokenWriter implements TokenWriter {
 		delegate.decTab();
 		return this;
 	}
+	@Override
 	public DirectPrinterHelper getPrinterHelper() {
 		return (DirectPrinterHelper) delegate.getPrinterHelper();
 	}
+	@Override
 	public void reset() {
 		if (isMuted()) {
 			return;
 		}
 		delegate.reset();
 	}
+	@Override
 	public TokenWriter writeSpace() {
 		if (isMuted()) {
 			getPrinterHelper().setShouldWriteTabs(false);

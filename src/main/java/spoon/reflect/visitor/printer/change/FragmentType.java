@@ -27,7 +27,7 @@ public enum FragmentType  {
 	 */
 	MAIN_FRAGMENT,
 	/**
-	 * modifiers of an Type or Variable. {@link DeclarationSourcePosition#getModifierSourceStart()}, {@link DeclarationSourcePosition#getModifierSourceEnd()}
+	 * modifiers and annotations of an Type, Executable or Variable. {@link DeclarationSourcePosition#getModifierSourceStart()}, {@link DeclarationSourcePosition#getModifierSourceEnd()}
 	 */
 	MODIFIERS,
 	/**

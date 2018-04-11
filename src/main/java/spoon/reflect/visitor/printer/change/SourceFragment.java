@@ -20,10 +20,12 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 
 import spoon.SpoonException;
+import spoon.reflect.code.CtComment;
 import spoon.reflect.cu.CompilationUnit;
 import spoon.reflect.cu.SourcePosition;
 import spoon.reflect.cu.position.BodyHolderSourcePosition;
 import spoon.reflect.cu.position.DeclarationSourcePosition;
+import spoon.reflect.declaration.CtClass;
 import spoon.reflect.declaration.CtElement;
 import spoon.reflect.visitor.CtScanner;
 import spoon.reflect.visitor.printer.change.SourcePositionUtils.FragmentDescriptor;
@@ -31,6 +33,9 @@ import spoon.support.reflect.cu.position.SourcePositionImpl;
 
 /**
  * Represents a part of source code of an {@link CtElement}
+ * It is connected into a tree of {@link SourceFragment}s.
+ * That tree can be build by {@link CompilationUnit#getRootSourceFragment()}
+ * And the tree of {@link SourceFragment}s related to one element can be returned by {@link CompilationUnit#getSourceFragment(CtElement)}
  */
 public class SourceFragment  {
 
@@ -42,10 +47,28 @@ public class SourceFragment  {
 	private SourceFragment nextSibling;
 	private SourceFragment firstChild;
 
-	public SourceFragment(CtElement element, SourcePosition sourcePosition) {
-		this(element, sourcePosition, FragmentType.MAIN_FRAGMENT);
+	/**
+	 * Creates a main fragment of {@link CtElement}
+	 * Note: it automatically creates child fragments if `sourcePosition`
+	 * is instance of {@link DeclarationSourcePosition} or {@link BodyHolderSourcePosition}
+	 *
+	 * @param element target {@link CtElement}
+	 */
+	public SourceFragment(CtElement element) {
+		this(element, element.getPosition(), FragmentType.MAIN_FRAGMENT);
 	}
-	public SourceFragment(CtElement element, SourcePosition sourcePosition, FragmentType fragmentType) {
+	/**
+	 * creates a main fragment for {@link SourcePosition}
+	 * Note: it automatically creates child fragments if `sourcePosition`
+	 * is instance of {@link DeclarationSourcePosition} or {@link BodyHolderSourcePosition}
+	 *
+	 * @param sourcePosition target {@link SourcePosition}
+	 */
+	public SourceFragment(SourcePosition sourcePosition) {
+		this(null, sourcePosition, FragmentType.MAIN_FRAGMENT);
+	}
+
+	private SourceFragment(CtElement element, SourcePosition sourcePosition, FragmentType fragmentType) {
 		super();
 		this.element = element;
 		this.sourcePosition = sourcePosition;
@@ -55,12 +78,15 @@ public class SourceFragment  {
 		}
 	}
 
+	/**
+	 * @return type of fragment
+	 */
 	public FragmentType getFragmentType() {
 		return fragmentType;
 	}
 
 	/**
-	 * @return offset of first character which belongs to this fragmen
+	 * @return offset of first character which belongs to this fragment
 	 */
 	public int getStart() {
 		switch (fragmentType) {
@@ -81,7 +107,7 @@ public class SourceFragment  {
 	}
 
 	/**
-	 * @return offset of first next character after this Fragment
+	 * @return offset of character after this fragment
 	 */
 	public int getEnd() {
 		switch (fragmentType) {
@@ -104,18 +130,28 @@ public class SourceFragment  {
 		throw new SpoonException("Unsupported fragment type: " + fragmentType);
 	}
 
+	/**
+	 * @return {@link SourcePosition} of this fragment
+	 */
 	public SourcePosition getSourcePosition() {
 		return sourcePosition;
 	}
 
 	@Override
 	public String toString() {
+		return "|" + getStart() + ", " + getEnd() + "|" + getSourceCode() + "|";
+	}
+
+	/**
+	 * @return origin source code of this fragment
+	 */
+	public String getSourceCode() {
 		return getSourceCode(getStart(), getEnd());
 	}
 
 	/**
-	 * @param start start offset
-	 * @param end end offset (after last element)
+	 * @param start start offset relative to compilation unit
+	 * @param end end offset (after last character) relative to compilation unit
 	 * @return source code of this Fragment between start/end offsets
 	 */
 	public String getSourceCode(int start, int end) {
@@ -129,10 +165,16 @@ public class SourceFragment  {
 		return null;
 	}
 
+	/**
+	 * @return true if the attribute of {@link CtElement} whose source code is in this fragment is modified
+	 */
 	public boolean isModified() {
 		return modified;
 	}
 
+	/**
+	 * @param modified true if the attribute of {@link CtElement} whose source code is in this fragment is modified
+	 */
 	public void setModified(boolean modified) {
 		this.modified = modified;
 	}
@@ -145,13 +187,14 @@ public class SourceFragment  {
 	}
 
 	/**
-	 * Builds tree of {@link SourcePosition} elements
+	 * Builds tree of {@link SourcePosition}s of `element` and all it's children
 	 * @param element the root element of the tree
 	 */
-	public void addSourceFragments(CtElement element) {
+	public void addTreeOfSourceFragmentsOfElement(CtElement element) {
 		SourcePosition sp = element.getPosition();
 		Deque<SourceFragment> parents = new ArrayDeque<>();
 		parents.push(this);
+		//scan all children of `element` and build tree of SourceFragments
 		new CtScanner() {
 			int noSource = 0;
 			@Override
@@ -173,20 +216,43 @@ public class SourceFragment  {
 			}
 		}.scan(element);
 	}
-	private static SourceFragment addChild(SourceFragment thisFragment, CtElement otherElement) {
+	/**
+	 * @param parentFragment the parent {@link SourceFragment}, which will receive {@link SourceFragment} made for `otherElement`
+	 * @param otherElement {@link CtElement} whose {@link SourceFragment} has to be added to `parentFragment`
+	 * @return
+	 */
+	private SourceFragment addChild(SourceFragment parentFragment, CtElement otherElement) {
 		SourcePosition otherSourcePosition = otherElement.getPosition();
 		if (otherSourcePosition instanceof SourcePositionImpl && otherSourcePosition.getCompilationUnit() != null) {
 			SourcePositionImpl childSPI = (SourcePositionImpl) otherSourcePosition;
-			if (thisFragment.sourcePosition != childSPI) {
-				if (thisFragment.isFromSameSource(otherSourcePosition)) {
-					SourceFragment otherFragment = new SourceFragment(otherElement, otherSourcePosition, FragmentType.MAIN_FRAGMENT);
+			if (parentFragment.sourcePosition != childSPI) {
+				if (parentFragment.isFromSameSource(otherSourcePosition)) {
+					SourceFragment otherFragment = new SourceFragment(otherElement);
 					//parent and child are from the same file. So we can connect their positions into one tree
-					CMP cmp = thisFragment.compare(otherFragment);
+					CMP cmp = parentFragment.compare(otherFragment);
 					if (cmp == CMP.OTHER_IS_CHILD) {
 						//child belongs under parent - OK
-						thisFragment.addChild(otherFragment);
+						parentFragment.addChild(otherFragment);
+						return otherFragment;
 					} else {
+						if (cmp == CMP.OTHER_IS_AFTER || cmp == CMP.OTHER_IS_BEFORE) {
+							if (otherElement instanceof CtComment) {
+								/*
+								 * comments of elements are sometime not included in source position of element.
+								 * because comments are ignored tokens for java compiler, which computes start/end of elements
+								 * Example:
+								 *
+								 * 		//a comment
+								 * 		aStatement();
+								 *
+								 * No problem. Simply add comment at correct position into SourceFragment tree, starting from root
+								 */
+								addChild(otherFragment);
+								return otherFragment;
+							}
+						}
 						//the source position of child element is not included in source position of parent element
+						//I (Pavel) am not sure how to handle it, so let's wait until it happens...
 //						if (otherElement instanceof CtAnnotation<?>) {
 //							/*
 //							 * it can happen for annotations of type TYPE_USE and FIELD
@@ -196,11 +262,10 @@ public class SourceFragment  {
 //							return null;
 //						}
 						//something is wrong ...
-						SourcePosition.class.getClass();
-						throw new SpoonException("TODO");
+						throw new SpoonException("The SourcePosition of elements are not consistent\nparentFragment: " + parentFragment + "\notherFragment: " + otherFragment);
 					}
 				} else {
-					throw new SpoonException("SourcePosition from unexpected compilation unit: " + otherSourcePosition + " expected is: " + thisFragment.sourcePosition);
+					throw new SpoonException("SourcePosition from unexpected compilation unit: " + otherSourcePosition + " expected is: " + parentFragment.sourcePosition);
 				}
 			}
 			//else these two elements has same instance of SourcePosition.
@@ -213,6 +278,7 @@ public class SourceFragment  {
 
 	/**
 	 * adds `other` {@link SourceFragment} into tree of {@link SourceFragment}s represented by this root element
+	 *
 	 * @param other to be added {@link SourceFragment}
 	 * @return new root of the tree of the {@link SourceFragment}s. It can be be this or `other`
 	 */
@@ -319,6 +385,9 @@ public class SourceFragment  {
 		throw new SpoonException("Cannot compare this: [" + getStart() + ", " + getEnd() + "] with other: [\"" + other.getStart() + "\", \"" + other.getEnd() + "\"]");
 	}
 
+	/**
+	 * creates child fragments for {@link DeclarationSourcePosition} and {@link BodyHolderSourcePosition}
+	 */
 	private void createChildFragments() {
 		if (sourcePosition instanceof DeclarationSourcePosition) {
 			DeclarationSourcePosition dsp = (DeclarationSourcePosition) sourcePosition;
@@ -348,9 +417,17 @@ public class SourceFragment  {
 			}
 		}
 	}
+
+	/**
+	 * @return {@link SourceFragment} which belongs to the same parent and is next in the sources
+	 */
 	public SourceFragment getNextSibling() {
 		return nextSibling;
 	}
+
+	/**
+	 * @return {@link SourceFragment}, which is first child of this fragment
+	 */
 	public SourceFragment getFirstChild() {
 		return firstChild;
 	}
@@ -361,7 +438,7 @@ public class SourceFragment  {
 	 *
 	 * @param start the start offset of this fragment
 	 * @param end the offset of next character after the end of this fragment
-	 * @return SourceFragment which represents the root of the CtElement whose sources are in interval [start, end]
+	 * @return {@link SourceFragment} which represents the root of the CtElement whose sources are in interval [start, end]
 	 */
 	public SourceFragment getSourceFragmentOf(int start, int end) {
 		int myEnd = getEnd();
@@ -400,7 +477,8 @@ public class SourceFragment  {
 		return childFragment;
 	}
 	/**
-	 * @return {@link CtElement} whose source code is contained in this fragment
+	 * @return {@link CtElement} whose source code is contained in this fragment.
+	 * May be null
 	 */
 	public CtElement getElement() {
 		return element;
@@ -408,7 +486,9 @@ public class SourceFragment  {
 
 	/**
 	 * @return direct child {@link SourceFragment} if it has same element like this.
-	 * It means that this {@link SourceFragment} knows the source parts of this element
+	 * It means that this {@link SourceFragment} knows the source parts of this element.
+	 * E.g. {@link SourceFragment} of {@link CtClass} has fragments for modifiers, name, body, etc.
+	 * So in this case it returns first child fragment, which are modifiers fragment of {@link CtClass}.
 	 * Else it returns null.
 	 */
 	public SourceFragment getChildFragmentOfSameElement() {
