@@ -16,6 +16,7 @@
  */
 package spoon.support.reflect.cu;
 
+import spoon.SpoonException;
 import spoon.processing.FactoryAccessor;
 import spoon.reflect.cu.CompilationUnit;
 import spoon.reflect.cu.SourcePosition;
@@ -23,9 +24,11 @@ import spoon.reflect.declaration.CtModule;
 import spoon.reflect.declaration.CtPackage;
 import spoon.reflect.declaration.CtType;
 import spoon.reflect.factory.Factory;
+import spoon.reflect.declaration.CtElement;
 import spoon.reflect.declaration.CtImport;
 import spoon.reflect.visitor.DefaultJavaPrettyPrinter;
 import spoon.reflect.visitor.filter.TypeFilter;
+import spoon.reflect.visitor.printer.change.SourceFragment;
 import spoon.support.reflect.cu.position.PartialSourcePositionImpl;
 
 import java.io.File;
@@ -53,6 +56,10 @@ public class CompilationUnitImpl implements CompilationUnit, FactoryAccessor {
 	CtModule ctModule;
 
 	File file;
+
+	private int[] lineSeparatorPositions;
+
+	private SourceFragment rootFragment;
 
 	@Override
 	public UNIT_TYPE getUnitType() {
@@ -283,5 +290,32 @@ public class CompilationUnitImpl implements CompilationUnit, FactoryAccessor {
 		return myPartialSourcePosition;
 	}
 
+	public SourceFragment getRootSourceFragment() {
+		if (rootFragment == null) {
+			String originSourceCode = getOriginalSourceCode();
+			rootFragment = new SourceFragment(null, factory.createSourcePosition(this, 0, originSourceCode.length() - 1, getLineSeparatorPositions()));
+			for (CtType<?> ctType : declaredTypes) {
+				rootFragment.addSourceFragments(ctType);
+			}
+		}
+		return rootFragment;
+	}
 
+	@Override
+	public SourceFragment getSourceFragment(CtElement element) {
+		SourceFragment rootFragment = getRootSourceFragment();
+		SourcePosition sp = element.getPosition();
+		if (sp.getCompilationUnit() != this) {
+			throw new SpoonException("Cannot return SourceFragment of element for different CompilationUnit");
+		}
+		return rootFragment.getSourceFragmentOf(sp.getSourceStart(), sp.getSourceEnd() + 1);
+	}
+
+	public int[] getLineSeparatorPositions() {
+		return lineSeparatorPositions;
+	}
+
+	public void setLineSeparatorPositions(int[] lineSeparatorPositions) {
+		this.lineSeparatorPositions = lineSeparatorPositions;
+	}
 }

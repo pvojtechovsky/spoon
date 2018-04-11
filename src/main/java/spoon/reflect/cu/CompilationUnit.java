@@ -20,6 +20,8 @@ import spoon.processing.FactoryAccessor;
 import spoon.reflect.declaration.CtModule;
 import spoon.reflect.declaration.CtPackage;
 import spoon.reflect.declaration.CtType;
+import spoon.reflect.visitor.printer.change.SourceFragment;
+import spoon.reflect.declaration.CtElement;
 import spoon.reflect.declaration.CtImport;
 
 import java.io.File;
@@ -55,6 +57,16 @@ public interface CompilationUnit extends FactoryAccessor, Serializable {
 	 * Sets the file that corresponds to this compilation unit.
 	 */
 	void setFile(File file);
+
+	/**
+	 * @return array of offsets in the origin source file, where occurs line separator
+	 */
+	int[] getLineSeparatorPositions();
+
+	/**
+	 * @param lineSeparatorPositions array of offsets in the origin source file, where occurs line separator
+	 */
+	void setLineSeparatorPositions(int[] lineSeparatorPositions);
 
 	/**
 	 * Gets all binary (.class) files that corresponds to this compilation unit
@@ -150,4 +162,18 @@ public interface CompilationUnit extends FactoryAccessor, Serializable {
 	 */
 	void setImports(Collection<CtImport> imports);
 
+	/**
+	 * @return root {@link SourceFragment} of the tree of all the source fragments of origin source code
+	 * Note: this method creates tree of {@link SourceFragment}s ... it can be a lot of instances
+	 * If the tree of {@link SourceFragment}s is needed then it MUST be created
+	 * BEFORE the Spoon model of this {@link CompilationUnit} is changed.
+	 * Otherwise there might be missing some {@link SourceFragment}s when {@link CtElement}s are deleted
+	 */
+	SourceFragment getRootSourceFragment();
+
+	/**
+	 * @param element the {@link CtElement} whose origin source code is needed
+	 * @return {@link SourceFragment} which mirrors the origin source code of the `element` or null.
+	 */
+	SourceFragment getSourceFragment(CtElement element);
 }

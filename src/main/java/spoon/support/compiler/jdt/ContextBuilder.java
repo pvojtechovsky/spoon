@@ -90,6 +90,15 @@ public class ContextBuilder {
 		stack.push(new ASTPair(e, node));
 		if (!(e instanceof CtPackage) || (compilationUnitSpoon.getFile() != null && compilationUnitSpoon.getFile().getName().equals(DefaultJavaPrettyPrinter.JAVA_PACKAGE_DECLARATION))) {
 			if (compilationunitdeclaration != null && !e.isImplicit()) {
+				if (e instanceof CtPackage) {
+					/*
+					 * do not generate SourcePosition for package-info files, because
+					 * 1) JDT compiler actually delivers 0,0 as source position of type package-info. Comments and annotations are not included
+					 * 	And it produces empty BodyHolderSourcePositionImpl with invalid negative values.
+					 * 2) Spoon has no good SourcePosition interface which would describe package-info
+					 */
+					return;
+				}
 				e.setPosition(this.jdtTreeBuilder.getPositionBuilder().buildPositionCtElement(e, node));
 			}
 		}
