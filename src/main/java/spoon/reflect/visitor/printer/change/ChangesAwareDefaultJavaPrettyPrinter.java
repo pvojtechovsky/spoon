@@ -18,6 +18,7 @@ package spoon.reflect.visitor.printer.change;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.Set;
 
 import spoon.SpoonException;
 import spoon.compiler.Environment;
@@ -153,8 +154,6 @@ public class ChangesAwareDefaultJavaPrettyPrinter extends DefaultJavaPrettyPrint
 		printAction.run();
 	}
 
-	private final SourceFragmentContextNormal EMPTY_FRAGMENT_CONTEXT = new SourceFragmentContextNormal();
-
 	/**
 	 * Called whenever {@link DefaultJavaPrettyPrinter} scans/prints an element
 	 */
@@ -177,17 +176,17 @@ public class ChangesAwareDefaultJavaPrettyPrinter extends DefaultJavaPrettyPrint
 		if (mutableTokenWriter.isMuted()) {
 			//it is already muted by an parent. Simply scan and ignore all tokens,
 			//because the content is not modified and was already copied from source
-			sourceFragmentContextStack.push(EMPTY_FRAGMENT_CONTEXT);
+			sourceFragmentContextStack.push(SourceFragmentContextNormal.EMPTY_FRAGMENT_CONTEXT);
 			super.scan(element);
 			sourceFragmentContextStack.pop();
 			return;
 		}
-		//it is not muted yet, so some this element or any sibling was modified
+		//it is not muted yet, so this element or any sibling is modified
 		//detect SourceFragments of element and whether they are modified or not
-		SourceFragment rootFragmentOfElement = SourcePositionUtils.getSourceFragmentsOfElement(changeCollector, element);
+		SourceFragment rootFragmentOfElement = getSourceFragmentsOfElementUsableForPrintingOfOriginCode(changeCollector, element);
 		if (rootFragmentOfElement == null) {
 			//we have no origin sources or this element has one source fragment only and it is modified. Use normal printing
-			sourceFragmentContextStack.push(EMPTY_FRAGMENT_CONTEXT);
+			sourceFragmentContextStack.push(SourceFragmentContextNormal.EMPTY_FRAGMENT_CONTEXT);
 			super.scan(element);
 			sourceFragmentContextStack.pop();
 			return;
@@ -200,5 +199,46 @@ public class ChangesAwareDefaultJavaPrettyPrinter extends DefaultJavaPrettyPrint
 		sourceFragmentContextStack.pop();
 		//at the end we always un-mute the token writer
 		mutableTokenWriter.setMuted(false);
+	}
+
+	/**
+	 * @param changeCollector holds information about modified elements
+	 * @param element to be printed element
+	 * @return {@link SourceFragment} or chain of {@link SourceFragment} siblings which wraps all the source parts of the `element`
+	 * It returns null when there are no sources at all or when all are modified so we cannot use them anyway
+	 */
+	private static SourceFragment getSourceFragmentsOfElementUsableForPrintingOfOriginCode(ChangeCollector changeCollector, CtElement element) {
+		//detect source code fragments of this element
+		SourceFragment rootFragmentOfElement = SourcePositionUtils.getSourceFragmentOfElement(element);
+		if (rootFragmentOfElement == null) {
+			//we have no origin sources for this element
+			return null;
+		}
+		//The origin sources of this element are available
+		//check if this element was changed
+		Set<CtRole> changedRoles = changeCollector.getChanges(element);
+		if (changedRoles.isEmpty()) {
+			//element was not changed and we know origin sources
+			//use origin source instead of printed code
+			return rootFragmentOfElement;
+		}
+		//element is changed. Detect source fragments of this element
+		SourceFragment childSourceFragmentsOfSameElement = rootFragmentOfElement.getChildFragmentOfSameElement();
+		if (childSourceFragmentsOfSameElement == null || childSourceFragmentsOfSameElement.getNextFragmentOfSameElement() == null) {
+			//there is only one source fragment and it is modified.
+			//So we cannot use origin sources
+			return null;
+		}
+		/*
+		 * there are more fragments. So may be some of them are not modified and we can use origin source to print them
+		 * e.g. when only type members of class are modified, we can still print the class header from the origin sources
+		 * Mark which fragments contains source code of data from modified roles
+		 */
+		//detect which roles of this element contains a change
+		if (SourcePositionUtils.markChangedFragments(element, childSourceFragmentsOfSameElement, changedRoles)) {
+			return childSourceFragmentsOfSameElement;
+		}
+		//this kind of changes is not supported for this element yet. We cannot use origin sources :-(
+		return null;
 	}
 }

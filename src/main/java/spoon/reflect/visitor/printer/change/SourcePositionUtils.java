@@ -26,9 +26,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import spoon.SpoonException;
-import spoon.experimental.modelobs.ChangeCollector;
 import spoon.reflect.cu.CompilationUnit;
 import spoon.reflect.cu.SourcePosition;
 import spoon.reflect.declaration.CtClass;
@@ -39,14 +39,17 @@ import spoon.reflect.declaration.CtVariable;
 import spoon.reflect.path.CtRole;
 import spoon.reflect.visitor.DefaultJavaPrettyPrinter;
 import spoon.reflect.visitor.TokenWriter;
-import spoon.support.reflect.cu.position.SourcePositionImpl;
 
 /**
  * source code position helper methods
  */
 public abstract class SourcePositionUtils  {
 
-	public static SourceFragment getSourceFragmentOfElement(CtElement element) {
+	/**
+	 * @param element target {@link CtElement}
+	 * @return {@link SourceFragment}, which represents origin source code of the `element`
+	 */
+	static SourceFragment getSourceFragmentOfElement(CtElement element) {
 		SourcePosition sp = element.getPosition();
 		if (sp.getCompilationUnit() != null) {
 			CompilationUnit cu = sp.getCompilationUnit();
@@ -56,62 +59,7 @@ public abstract class SourcePositionUtils  {
 	}
 
 	/**
-	 * @param changeCollector
-	 * @param element
-	 * @return SourceFragment which wraps all the source parts of the `element`
-	 */
-	public static SourceFragment getSourceFragmentsOfElement(ChangeCollector changeCollector, CtElement element) {
-		//detect source code fragments of this element
-		SourceFragment rootFragmentOfElement = getSourceFragmentOfElement(element);
-		if (rootFragmentOfElement == null) {
-			//we have no origin sources for this element
-			return null;
-		}
-		//The origin sources of this element are available
-		//check if this element was changed
-		Set<CtRole> changedRoles = changeCollector.getChanges(element);
-		if (changedRoles.isEmpty()) {
-			//element was not changed and we know origin sources
-			//use origin source instead of printed code
-			return rootFragmentOfElement;
-		}
-		//element is changed. Detect source fragments of this element
-		SourceFragment childSourceFragmentsOfSameElement = rootFragmentOfElement.getChildFragmentOfSameElement();
-		if (childSourceFragmentsOfSameElement == null || childSourceFragmentsOfSameElement.getNextFragmentOfSameElement() == null) {
-			//there is only one source fragment and it is modified.
-			//So we cannot use origin sources
-			return null;
-		}
-		/*
-		 * there are more fragments. So may be some of them are not modified and we can use origin source to print them
-		 * e.g. when only type members of class are modified, we can still print the class header from the origin sources
-		 * Mark which fragments contains source code of data from modified roles
-		 */
-		//detect which roles of this element contains a change
-		if (markChangedFragments(element, childSourceFragmentsOfSameElement, changedRoles)) {
-			return childSourceFragmentsOfSameElement;
-		}
-		//this kind of changes is not supported for this element yet. We cannot use origin sources :-(
-		return null;
-	}
-
-	/**
-	 * @param element
-	 * @return {@link SourcePosition} if it is not empty and the origin sources are available. Else it returns null
-	 */
-	private static SourcePosition getNonEmptySourcePosition(CtElement element) {
-		if (element != null) {
-			SourcePosition sp = element.getPosition();
-			if (sp.getSourceStart() >= 0 && sp.getSourceEnd() >= 0 && sp.getCompilationUnit() != null && sp.getCompilationUnit().getOriginalSourceCode() != null) {
-				return sp;
-			}
-		}
-		return null;
-	}
-
-	/**
-	 * Maps {@link FragmentType} to type specific {@link FragmentDescriptor}
-	 * depending on element type of the {@link SourceFragment}
+	 * Maps {@link FragmentType} to spoon model concept {@link #type} specific {@link FragmentDescriptor}
 	 */
 	private static class TypeToFragmentDescriptor {
 		Class<? extends CtElement> type;
@@ -120,6 +68,13 @@ public abstract class SourcePositionUtils  {
 			this.type = type;
 		}
 
+		/**
+		 * Creates a {@link FragmentDescriptor} of defined {@link FragmentType}
+		 * and initializes it using `initializer`
+		 * @param ft  {@link FragmentType}
+		 * @param initializer a code which defines behavior of that fragment
+		 * @return this to support fluent API
+		 */
 		TypeToFragmentDescriptor fragment(FragmentType ft, Consumer<FragmentDescriptorBuilder> initializer) {
 			FragmentDescriptor fd = new FragmentDescriptor();
 			initializer.accept(new FragmentDescriptorBuilder(fd));
@@ -127,7 +82,11 @@ public abstract class SourcePositionUtils  {
 			return this;
 		}
 
-		public boolean matchesElement(CtElement element) {
+		/**
+		 * @param element target {@link CtElement}
+		 * @return true if `element` is handled by this {@link TypeToFragmentDescriptor}
+		 */
+		boolean matchesElement(CtElement element) {
 			return type.isInstance(element);
 		}
 	}
@@ -174,9 +133,11 @@ public abstract class SourcePositionUtils  {
 		private Set<CtRole> startScanRole = new HashSet<>();
 
 		/**
-		 * initializes fragmentDescriptors of the {@link SourceFragment} and detects whether {@link SourceFragment} is modified
-		 * @param fragment
-		 * @param changedRoles
+		 * 1) initializes fragmentDescriptors of the {@link SourceFragment}
+		 * 2) detects whether `fragment` contains source code of modified element attribute/role
+		 *
+		 * @param fragment target {@link SourceFragment}
+		 * @param changedRoles the modifiable {@link Set} of {@link CtRole}s, whose attributes values are modified in element of the fragment
 		 */
 		void applyTo(SourceFragment fragment, Set<CtRole> changedRoles) {
 			if (roles != null) {
@@ -195,12 +156,12 @@ public abstract class SourcePositionUtils  {
 		}
 
 		/**
-		 * Detects whether token triggers start/end usage of {@link SourceFragment}
-		 * related to this {@link FragmentDescriptor}
+		 * Detects whether {@link TokenWriter} token just printed by {@link DefaultJavaPrettyPrinter}
+		 * triggers start/end usage of {@link SourceFragment} linked to this {@link FragmentDescriptor}
 		 *
 		 * @param isStart if true then it checks start trigger. if false then it checks end trigger
 		 * @param tokenWriterMethodName the name of {@link TokenWriter} method whose token is fired
-		 * @param token the value of the {@link TokenWriter} token
+		 * @param token the value of the {@link TokenWriter} token. May be null, depending on the `tokenWriterMethodName`
 		 * @return true this token triggers start/end of usage of {@link SourceFragment}
 		 */
 		boolean isTriggeredByToken(boolean isStart, String tokenWriterMethodName, String token) {
@@ -214,7 +175,7 @@ public abstract class SourcePositionUtils  {
 
 		/**
 		 * Detects whether {@link DefaultJavaPrettyPrinter} scanning of element on `role`  triggers start usage of {@link SourceFragment}
-		 * related to this {@link FragmentDescriptor}
+		 * linked to this {@link FragmentDescriptor}
 		 *
 		 * @param role the role (with respect to parent) of scanned element
 		 * @return true is scanning of this element triggers start of usage of {@link SourceFragment}
@@ -226,7 +187,7 @@ public abstract class SourcePositionUtils  {
 		/**
 		 * @return {@link CtRole} of the list attribute handled by this fragment
 		 */
-		public CtRole getListRole() {
+		CtRole getListRole() {
 			if (kind != FragmentKind.LIST || roles == null || roles.size() != 1) {
 				throw new SpoonException("This fragment does not have list role");
 			}
@@ -235,7 +196,7 @@ public abstract class SourcePositionUtils  {
 	}
 
 	/**
-	 * Used to build {@link FragmentDescriptor}s in readable way
+	 * Used to build {@link FragmentDescriptor}s of spoon model concepts in a maintenable and readable way
 	 */
 	private static class FragmentDescriptorBuilder {
 		FragmentDescriptor descriptor;
@@ -245,11 +206,19 @@ public abstract class SourcePositionUtils  {
 			this.descriptor = descriptor;
 		}
 
+		/**
+		 * @param roles the one or more roles, whose values are contained in the linked
+		 * {@link SourceFragment}. Used to detect whether {@link SourceFragment} is modified or not.
+		 */
 		FragmentDescriptorBuilder role(CtRole... roles) {
 			descriptor.roles = new HashSet(Arrays.asList(roles));
 			return this;
 		}
 
+		/**
+		 * @param role defines {@link FragmentDescriptor} of {@link SourceFragment},
+		 * which represents a list of values. E.g. list of type members.
+		 */
 		FragmentDescriptorBuilder list(CtRole role) {
 			if (descriptor.roles != null) {
 				throw new SpoonException("Cannot combine #role and #list");
@@ -259,36 +228,69 @@ public abstract class SourcePositionUtils  {
 			return this;
 		}
 
+		/**
+		 * @param tokens list of {@link TokenWriter} keywords which triggers start of {@link SourceFragment}
+		 * linked by built {@link FragmentDescriptor}
+		 */
 		FragmentDescriptorBuilder startWhenKeyword(String...tokens) {
-			initTokenDetector(descriptor.startTokenDetector, "writeKeyword", tokens);
+			descriptor.startTokenDetector.add(createTokenDetector("writeKeyword", tokens));
 			return this;
 		}
+		/**
+		 * @param tokens list of {@link TokenWriter} keywords which triggers end of {@link SourceFragment}
+		 * linked by built {@link FragmentDescriptor}
+		 */
 		FragmentDescriptorBuilder endWhenKeyword(String...tokens) {
-			initTokenDetector(descriptor.endTokenDetector, "writeKeyword", tokens);
+			descriptor.endTokenDetector.add(createTokenDetector("writeKeyword", tokens));
 			return this;
 		}
+		/**
+		 * @param tokens list of {@link TokenWriter} separators, which triggers start of {@link SourceFragment}
+		 * linked by built {@link FragmentDescriptor}
+		 */
 		FragmentDescriptorBuilder startWhenSeparator(String...tokens) {
-			initTokenDetector(descriptor.startTokenDetector, "writeSeparator", tokens);
+			descriptor.startTokenDetector.add(createTokenDetector("writeSeparator", tokens));
 			return this;
 		}
+		/**
+		 * @param tokens list of {@link TokenWriter} separators, which triggers end of {@link SourceFragment}
+		 * linked by built {@link FragmentDescriptor}
+		 */
 		FragmentDescriptorBuilder endWhenSeparator(String...tokens) {
-			initTokenDetector(descriptor.endTokenDetector, "writeSeparator", tokens);
+			descriptor.endTokenDetector.add(createTokenDetector("writeSeparator", tokens));
 			return this;
 		}
-		FragmentDescriptorBuilder startWhenIdentifier(String...tokens) {
-			initTokenDetector(descriptor.startTokenDetector, "writeIdentifier", tokens);
+		/**
+		 * Defines that any {@link TokenWriter} identifier triggers start of {@link SourceFragment}
+		 * linked by built {@link FragmentDescriptor}
+		 */
+		FragmentDescriptorBuilder startWhenIdentifier() {
+			descriptor.startTokenDetector.add(createTokenDetector("writeIdentifier"));
 			return this;
 		}
-		FragmentDescriptorBuilder endWhenIdentifier(String...tokens) {
-			initTokenDetector(descriptor.endTokenDetector, "writeIdentifier", tokens);
+		/**
+		 * Defines that any {@link TokenWriter} identifier triggers end of {@link SourceFragment}
+		 * linked by built {@link FragmentDescriptor}
+		 */
+		FragmentDescriptorBuilder endWhenIdentifier() {
+			descriptor.endTokenDetector.add(createTokenDetector("writeIdentifier"));
 			return this;
 		}
+		/**
+		 * @param roles list of {@link CtRole}s, whose scanning triggers start of {@link SourceFragment}
+		 * linked by built {@link FragmentDescriptor}
+		 */
 		FragmentDescriptorBuilder startWhenScan(CtRole...roles) {
 			descriptor.startScanRole.addAll(Arrays.asList(roles));
 			return this;
 		}
 
-		void initTokenDetector(List<BiPredicate<String, String>> detectors, String tokenWriterMethodName, String...tokens) {
+		/**
+		 * Creates a {@link Predicate} which detects occurrence of the {@link TokenWriter} token
+		 * @param tokenWriterMethodName
+		 * @param tokens
+		 */
+		static BiPredicate<String, String> createTokenDetector(String tokenWriterMethodName, String...tokens) {
 			BiPredicate<String, String> predicate;
 			if (tokens.length == 0) {
 				predicate = (methodName, token) -> {
@@ -305,75 +307,83 @@ public abstract class SourcePositionUtils  {
 					return methodName.equals(tokenWriterMethodName) && kw.contains(token);
 				};
 			}
-			detectors.add(predicate);
+			return predicate;
 		}
 	}
 
+	/**
+	 * @param type target spoon model concept Class
+	 * @return new {@link TypeToFragmentDescriptor} which describes the printing behavior `type`
+	 */
 	private static TypeToFragmentDescriptor type(Class<? extends CtElement> type) {
 		return new TypeToFragmentDescriptor(type);
 	}
 
+	/**
+	 * Defines the know-how of printing of spoon model concepts
+	 */
 	private static final List<TypeToFragmentDescriptor> descriptors = Arrays.asList(
 			//when printing any CtType
 			type(CtType.class)
-			//then source fragment of type MODIFIERS
-			.fragment(FragmentType.MODIFIERS,
-					//contains source code of elements on roles ANNOTATION and MODIFIER
-					i -> i.role(CtRole.ANNOTATION, CtRole.MODIFIER))
-			//and source fragment which is located after modifiers and before the name
-			.fragment(FragmentType.BEFORE_NAME,
-					//starts to be active when one of these keywords or separator '@' is fired by TokenWriter
-					i -> i.startWhenKeyword("class", "enum", "interface", "").startWhenSeparator("@"))
-			//and source fragment NAME
-			.fragment(FragmentType.NAME,
-					//contains source code of attribute value NAME
-					//and starts when TokenWriter is going to print any identifier
-					//and ends when TokenWriter printed that identifier
-					i -> i.role(CtRole.NAME).startWhenIdentifier().endWhenIdentifier())
-			//and source fragment located after NAME and before BODY
-			.fragment(FragmentType.AFTER_NAME,
-					//contains source code of elements on roles SUPER_TYPE, INTERFACE, TYPE_PARAMETER
-					i -> i.role(CtRole.SUPER_TYPE, CtRole.INTERFACE, CtRole.TYPE_PARAMETER))
-			//and source fragment BODY
-			.fragment(FragmentType.BODY,
-					//contains source code of elements on role TYPE_MEMBER
-					//and starts when TokenWriter is going to print separator '{'
-					//and ends when TokenWriter printed separator '}'
-					i -> i.list(CtRole.TYPE_MEMBER).startWhenSeparator("{").endWhenSeparator("}")),
+				//then source fragment of type MODIFIERS
+				.fragment(FragmentType.MODIFIERS,
+						//contains source code of elements on roles ANNOTATION and MODIFIER
+						i -> i.role(CtRole.ANNOTATION, CtRole.MODIFIER))
+				//and source fragment which is located after modifiers and before the name
+				.fragment(FragmentType.BEFORE_NAME,
+						//starts to be active when one of these keywords or separator '@' is fired by TokenWriter
+						i -> i.startWhenKeyword("class", "enum", "interface").startWhenSeparator("@"))
+				//and source fragment NAME
+				.fragment(FragmentType.NAME,
+						//contains source code of attribute value NAME
+						//and starts when TokenWriter is going to print any identifier
+						//and ends when TokenWriter printed that identifier
+						i -> i.role(CtRole.NAME).startWhenIdentifier().endWhenIdentifier())
+				//and source fragment located after NAME and before BODY
+				.fragment(FragmentType.AFTER_NAME,
+						//contains source code of elements on roles SUPER_TYPE, INTERFACE, TYPE_PARAMETER
+						i -> i.role(CtRole.SUPER_TYPE, CtRole.INTERFACE, CtRole.TYPE_PARAMETER))
+				//and source fragment BODY
+				.fragment(FragmentType.BODY,
+						//contains source code of elements on role TYPE_MEMBER, which is the list of values
+						//and starts when TokenWriter is going to print separator '{'
+						//and ends when TokenWriter printed separator '}'
+						i -> i.list(CtRole.TYPE_MEMBER).startWhenSeparator("{").endWhenSeparator("}")),
 			type(CtExecutable.class)
-			.fragment(FragmentType.MODIFIERS,
-					i -> i.role(CtRole.ANNOTATION, CtRole.MODIFIER))
-			.fragment(FragmentType.BEFORE_NAME,
-					i -> i.role(CtRole.TYPE).startWhenScan(CtRole.TYPE_PARAMETER, CtRole.TYPE))
-			.fragment(FragmentType.NAME,
-					i -> i.role(CtRole.NAME).startWhenIdentifier().endWhenIdentifier())
-			.fragment(FragmentType.AFTER_NAME,
-					i -> i.role(CtRole.PARAMETER, CtRole.THROWN).startWhenSeparator("("))
-			.fragment(FragmentType.BODY,
-					i -> i.role(CtRole.BODY).startWhenSeparator("{").endWhenSeparator("}")),
+				.fragment(FragmentType.MODIFIERS,
+						i -> i.role(CtRole.ANNOTATION, CtRole.MODIFIER))
+				.fragment(FragmentType.BEFORE_NAME,
+						i -> i.role(CtRole.TYPE).startWhenScan(CtRole.TYPE_PARAMETER, CtRole.TYPE))
+				.fragment(FragmentType.NAME,
+						i -> i.role(CtRole.NAME).startWhenIdentifier().endWhenIdentifier())
+				.fragment(FragmentType.AFTER_NAME,
+						i -> i.role(CtRole.PARAMETER, CtRole.THROWN).startWhenSeparator("("))
+				.fragment(FragmentType.BODY,
+						i -> i.role(CtRole.BODY).startWhenSeparator("{").endWhenSeparator("}")),
 //			type(CtBlock.class)
-//			.fragment(FragmentType.MAIN_FRAGMENT,
-//					i -> i.list(CtRole.STATEMENT)),
+//				.fragment(FragmentType.MAIN_FRAGMENT,
+//						i -> i.list(CtRole.STATEMENT)),
 			type(CtVariable.class)
-			.fragment(FragmentType.MODIFIERS,
-					i -> i.role(CtRole.ANNOTATION, CtRole.MODIFIER))
-			.fragment(FragmentType.BEFORE_NAME,
-					i -> i.role(CtRole.TYPE).startWhenScan(CtRole.TYPE))
-			.fragment(FragmentType.NAME,
-					i -> i.role(CtRole.NAME).startWhenIdentifier().endWhenIdentifier())
-			.fragment(FragmentType.AFTER_NAME,
-					i -> i.role(CtRole.DEFAULT_EXPRESSION))
+				.fragment(FragmentType.MODIFIERS,
+						i -> i.role(CtRole.ANNOTATION, CtRole.MODIFIER))
+				.fragment(FragmentType.BEFORE_NAME,
+						i -> i.role(CtRole.TYPE).startWhenScan(CtRole.TYPE))
+				.fragment(FragmentType.NAME,
+						i -> i.role(CtRole.NAME).startWhenIdentifier().endWhenIdentifier())
+				.fragment(FragmentType.AFTER_NAME,
+						i -> i.role(CtRole.DEFAULT_EXPRESSION))
 	);
 
 	/**
 	 * Marks the {@link SourceFragment}s, which contains source code of `changedRoles` of `element`
-	 * @param element the element
-	 * @param fragments
-	 * @param changedRoles
+	 * @param element the {@link CtElement} which belongs to the `fragment`
+	 * @param fragment the chain of sibling {@link SourceFragment}s, which represent source code fragments of `element`
+	 * @param changedRoles the set of roles whose values are actually modified in `element` (so we cannot use origin source code, but have to print them normally)
 	 * @return true if {@link SourceFragment}s matches all changed roles, so we can use them
-	 * false if current  `descriptors` is insufficient and we cannot use origin source code of any fragment
+	 * false if current  `descriptors` is insufficient and we cannot use origin source code of any fragment.
+	 * It happens because only few spoon model concepts have a {@link FragmentDescriptor}s
 	 */
-	private static boolean markChangedFragments(CtElement element, SourceFragment fragment, Set<CtRole> changedRoles) {
+	static boolean markChangedFragments(CtElement element, SourceFragment fragment, Set<CtRole> changedRoles) {
 		for (TypeToFragmentDescriptor descriptor : descriptors) {
 			if (descriptor.matchesElement(element)) {
 				Set<CtRole> toBeAssignedRoles = new HashSet<>(changedRoles);
@@ -386,34 +396,17 @@ public abstract class SourcePositionUtils  {
 					}
 					fragment = fragment.getNextFragmentOfSameElement();
 				}
-				//we can use it if all changed roles are matching to some fragment
 				if (toBeAssignedRoles.isEmpty()) {
+					//we can use it if all changed roles are matching to some fragment
 					return true;
 				}
+				//check this log if you need to make printing of changes more precise
 				element.getFactory().getEnvironment().debugMessage("The element of type " + element.getClass().getName() + " is not mapping these roles to SourceFragments: " + toBeAssignedRoles);
 				return false;
 			}
 		}
+		//check this log if you need to make printing of changes more precise
+		element.getFactory().getEnvironment().debugMessage("The element of type " + element.getClass().getName() + " has no printing descriptor");
 		return false;
-	}
-
-	/**
-	 * @param element {@link CtElement} whose source position is needed
-	 * @return first defined source position of element or null if there is no source position
-	 */
-	public static SourcePositionImpl getMyOrParentsSourcePosition(CtElement element) {
-		while (true) {
-			if (element == null) {
-				return null;
-			}
-			SourcePosition sp = element.getPosition();
-			if (sp instanceof SourcePositionImpl) {
-				return (SourcePositionImpl) sp;
-			}
-			if (element.isParentInitialized() == false) {
-				return null;
-			}
-			element = element.getParent();
-		}
 	}
 }

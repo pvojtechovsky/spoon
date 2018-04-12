@@ -42,6 +42,10 @@ import java.util.List;
 
 import static spoon.reflect.ModelElementContainerDefaultCapacities.COMPILATION_UNIT_DECLARED_TYPES_CONTAINER_DEFAULT_CAPACITY;
 
+/**
+ * Implements a compilation unit. In Java, a compilation unit can contain only one
+ * public type declaration and other secondary types declarations (not public).
+ */
 public class CompilationUnitImpl implements CompilationUnit, FactoryAccessor {
 	private static final long serialVersionUID = 1L;
 
@@ -148,6 +152,7 @@ public class CompilationUnitImpl implements CompilationUnit, FactoryAccessor {
 		this.ctPackage = ctPackage;
 	}
 
+	@Override
 	public void setFile(File file) {
 		this.file = file;
 	}
@@ -200,6 +205,7 @@ public class CompilationUnitImpl implements CompilationUnit, FactoryAccessor {
 
 	String originalSourceCode;
 
+	@Override
 	public String getOriginalSourceCode() {
 
 		if (originalSourceCode == null) {
@@ -214,6 +220,7 @@ public class CompilationUnitImpl implements CompilationUnit, FactoryAccessor {
 		return originalSourceCode;
 	}
 
+	@Override
 	public int beginOfLineIndex(int index) {
 		int cur = index;
 		while (cur >= 0 && getOriginalSourceCode().charAt(cur) != '\n') {
@@ -222,6 +229,7 @@ public class CompilationUnitImpl implements CompilationUnit, FactoryAccessor {
 		return cur + 1;
 	}
 
+	@Override
 	public int nextLineIndex(int index) {
 		int cur = index;
 		while (cur < getOriginalSourceCode().length()
@@ -231,6 +239,7 @@ public class CompilationUnitImpl implements CompilationUnit, FactoryAccessor {
 		return cur + 1;
 	}
 
+	@Override
 	public int getTabCount(int index) {
 		int cur = index;
 		int tabCount = 0;
@@ -261,10 +270,12 @@ public class CompilationUnitImpl implements CompilationUnit, FactoryAccessor {
 		this.imports = imports;
 	}
 
+	@Override
 	public Factory getFactory() {
 		return factory;
 	}
 
+	@Override
 	public void setFactory(Factory factory) {
 		this.factory = factory;
 	}
@@ -290,6 +301,7 @@ public class CompilationUnitImpl implements CompilationUnit, FactoryAccessor {
 		return myPartialSourcePosition;
 	}
 
+	@Override
 	public SourceFragment getRootSourceFragment() {
 		if (rootFragment == null) {
 			String originSourceCode = getOriginalSourceCode();
@@ -311,10 +323,12 @@ public class CompilationUnitImpl implements CompilationUnit, FactoryAccessor {
 		return rootFragment.getSourceFragmentOf(sp.getSourceStart(), sp.getSourceEnd() + 1);
 	}
 
+	@Override
 	public int[] getLineSeparatorPositions() {
 		return lineSeparatorPositions;
 	}
 
+	@Override
 	public void setLineSeparatorPositions(int[] lineSeparatorPositions) {
 		this.lineSeparatorPositions = lineSeparatorPositions;
 	}

@@ -7,10 +7,14 @@ import spoon.reflect.declaration.CtElement;
 import spoon.reflect.path.CtRole;
 import spoon.reflect.visitor.printer.change.SourcePositionUtils.FragmentDescriptor;
 
+/**
+ * Knows how to handle actually printed {@link CtElement}.
+ * It drives printing of main element and single value attributes,
+ * while {@link SourceFragmentContextList} is used to drive printing of lists of attribute values
+ */
 class SourceFragmentContextNormal extends SourceFragmentContext {
-	/**
-	 *
-	 */
+	static final SourceFragmentContextNormal EMPTY_FRAGMENT_CONTEXT = new SourceFragmentContextNormal();
+
 	private final MutableTokenWriter mutableTokenWriter;
 	private SourceFragment currentFragment;
 	private CtElement element;
@@ -19,6 +23,11 @@ class SourceFragmentContextNormal extends SourceFragmentContext {
 	 */
 	private SourceFragmentContext childContext;
 
+	/**
+	 * @param mutableTokenWriter {@link MutableTokenWriter}, which is used for printing
+	 * @param element the {@link CtElement} which is printed
+	 * @param rootFragment the {@link SourceFragment}, which represents whole elements. E.g. whole type or method
+	 */
 	SourceFragmentContextNormal(MutableTokenWriter mutableTokenWriter, CtElement element, SourceFragment rootFragment) {
 		super();
 		this.mutableTokenWriter = mutableTokenWriter;
@@ -27,12 +36,15 @@ class SourceFragmentContextNormal extends SourceFragmentContext {
 		handlePrinting();
 	}
 
-	SourceFragmentContextNormal() {
+	private SourceFragmentContextNormal() {
 		mutableTokenWriter = null;
 		currentFragment = null;
 	}
 
-	SourceFragment getNextFragment() {
+	/**
+	 * @return next {@link SourceFragment} of the actually printed element.
+	 */
+	private SourceFragment getNextFragment() {
 		if (currentFragment != null) {
 			return currentFragment.getNextFragmentOfSameElement();
 		}
@@ -42,12 +54,17 @@ class SourceFragmentContextNormal extends SourceFragmentContext {
 	/**
 	 * Called when next fragment is going to be printed
 	 */
-	void nextFragment() {
+	private void nextFragment() {
 		currentFragment = getNextFragment();
 		handlePrinting();
 	}
 
-	void handlePrinting() {
+	/**
+	 * checks if current fragment is modified
+	 * If not modified, then origin source code is directly printed and token writer is muted
+	 * If modified, then token writer is enabled and code is printed normally
+	 */
+	private void handlePrinting() {
 		if (currentFragment != null) {
 			if (currentFragment.isModified() == false) {
 				//we are going to print not modified fragment
@@ -72,14 +89,6 @@ class SourceFragmentContextNormal extends SourceFragmentContext {
 		}
 	}
 
-	boolean testFagmentDescriptor(SourceFragment sourceFragment, Predicate<FragmentDescriptor> predicate) {
-		if (sourceFragment != null) {
-			if (sourceFragment.fragmentDescriptor != null) {
-				return predicate.test(sourceFragment.fragmentDescriptor);
-			}
-		}
-		return false;
-	}
 
 	@Override
 	void onTokenWriterToken(String tokenWriterMethodName, String token, Runnable printAction) {
@@ -128,5 +137,14 @@ class SourceFragmentContextNormal extends SourceFragmentContext {
 	void onParentFinished() {
 		//we will see if it is true... I (Pavel) am not sure yet
 		throw new SpoonException("SourceFragmentContextNormal shouldn't be used as child context");
+	}
+
+	private boolean testFagmentDescriptor(SourceFragment sourceFragment, Predicate<FragmentDescriptor> predicate) {
+		if (sourceFragment != null) {
+			if (sourceFragment.fragmentDescriptor != null) {
+				return predicate.test(sourceFragment.fragmentDescriptor);
+			}
+		}
+		return false;
 	}
 }
