@@ -141,6 +141,29 @@ public class SourceFragmentTest {
 		assertSame(rootFragment.getFirstChild(), childWrapper);
 		assertSame(rootFragment.getFirstChild().getFirstChild(), child);
 	}
+	@Test
+	public void testSourceFragmentWrapChildrenAndSiblings() throws Exception {
+		//contract: the two SourceFragment trees merge correctly together 
+		SourceFragment rootFragment = createFragment(0, 100);
+		SourceFragment child = createFragment(50, 60);
+		rootFragment.add(child);
+		
+		SourceFragment childWrapper = createFragment(40, 70);
+		SourceFragment childA = createFragment(40, 50);
+		SourceFragment childB = createFragment(50, 55);
+		SourceFragment childC = createFragment(60, 65);
+		SourceFragment childD = createFragment(65, 70);
+		//add all children and check the root is still childWrapper
+		assertSame(childWrapper, childWrapper.add(childA).add(childB).add(childC).add(childD));
+		
+		rootFragment.add(childWrapper);
+		assertSame(rootFragment.getFirstChild(), childWrapper);
+		assertSame(childA, childWrapper.getFirstChild());
+		assertSame(child, childA.getNextSibling());
+		assertSame(childB, child.getFirstChild());
+		assertSame(childC, child.getNextSibling());
+		assertSame(childD, childC.getNextSibling());
+	}
 
 	@Test
 	public void testLocalizationOfSourceFragment() throws Exception {

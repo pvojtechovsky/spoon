@@ -327,6 +327,7 @@ public class SourceFragment  {
 				prevOther.nextSibling = null;
 				addNextSibling(other);
 				//and we are done, because other.nextSibling is already OK
+				return;
 			}
 			throw new SpoonException("Unexpected child SourceFragment");
 		}
