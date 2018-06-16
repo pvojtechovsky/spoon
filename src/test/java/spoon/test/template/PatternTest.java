@@ -34,6 +34,8 @@ import spoon.support.util.ImmutableMap;
 import spoon.support.util.ImmutableMapImpl;
 import spoon.test.template.testclasses.LoggerModel;
 import spoon.test.template.testclasses.ToBeMatched;
+import spoon.test.template.testclasses.TypeRefsWithActualTypeArguments;
+import spoon.test.template.testclasses.TypeRefsWithActualTypeArguments4Matching;
 import spoon.test.template.testclasses.logger.Logger;
 import spoon.test.template.testclasses.match.GenerateIfElse;
 import spoon.test.template.testclasses.match.MatchForEach;
@@ -1544,5 +1546,36 @@ public class PatternTest {
 		Object v = match.getParametersMap().get(name);
 		assertNotNull(v);
 		return ((ImmutableMap) v).asMap();
+	}
+	@Test
+	public void testGenerateTypeReferenceWithActualTypeArguments() throws Exception {
+		CtType<?> ctClass = ModelUtils.buildClass(TypeRefsWithActualTypeArguments.class);
+		Pattern pattern = PatternBuilder.create(ctClass).configurePatternParameters(pb -> {
+			pb.parameter("type").byLocalType(ctClass, "SomeType");
+		}).build();
+		CtClass genClass = pattern.generator().generateType("some.generated.Type", new ImmutableMapImpl().putValue("type", List.class).asMap());
+		assertEquals("java.util.List<java.lang.Double>", genClass.getSuperclass().toString());
+		assertEquals("java.util.List<java.lang.Long>", genClass.getField("withLong").getType().toString());
+		assertEquals("java.util.List<? extends java.lang.Integer>", genClass.getField("withExtendsInt").getType().toString());
+		assertEquals("java.util.List<? super java.lang.String>", genClass.getField("withSuperString").getType().toString());
+		assertEquals("java.util.List<?>", genClass.getField("withWild").getType().toString());
+		assertEquals("java.util.List", genClass.getField("withoutActualTypeArgs").getType().toString());
+	}
+
+	@Test
+	public void testMatchTypeReferenceWithActualTypeArguments() throws Exception {
+		CtType<?> ctClass = ModelUtils.buildClass(TypeRefsWithActualTypeArguments4Matching.class);
+		Pattern pattern = PatternBuilder.create(new PatternBuilderHelper(ctClass).setBodyOfMethod("matcher").getPatternElements())
+				.configurePatternParameters(pb -> {
+					pb.parameter("type").byType(List.class);
+					pb.parameter("arg").byType(Double.class);
+					pb.parameter("name").byString("fieldName");
+				}).build();
+		List<Match> matches = pattern.getMatches(ctClass.getMethodsByName("example").get(0));
+		assertEquals(5, matches.size());
+		{
+			Match match = matches.get(0);
+			assertEquals(Arrays.asList("SomeType<java.lang.Long> withLong;"), toListOfStrings(match.getMatchingElements()));
+		}
 	}
 }
