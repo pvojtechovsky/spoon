@@ -47,8 +47,8 @@ import spoon.reflect.factory.Factory;
 import spoon.reflect.visitor.AstParentConsistencyChecker;
 import spoon.reflect.visitor.DefaultJavaPrettyPrinter;
 import spoon.reflect.visitor.Filter;
-import spoon.reflect.visitor.PrettyPrinter;
 import spoon.reflect.visitor.Query;
+import spoon.reflect.visitor.printer.change.ChangesAwareDefaultJavaPrettyPrinter;
 import spoon.support.QueueProcessingManager;
 import spoon.support.comparator.FixedOrderBasedOnFileNameCompilationUnitComparator;
 import spoon.support.compiler.SpoonProgress;
@@ -678,7 +678,8 @@ public class JDTBasedSpoonCompiler implements spoon.SpoonModelBuilder {
 		spoon.reflect.cu.CompilationUnit cu = factory.CompilationUnit().getMap().get(path);
 		List<CtType<?>> toBePrinted = cu.getDeclaredTypes();
 
-		PrettyPrinter printer = new DefaultJavaPrettyPrinter(env);
+//		PrettyPrinter printer = new DefaultJavaPrettyPrinter(env);
+		ChangesAwareDefaultJavaPrettyPrinter printer = new ChangesAwareDefaultJavaPrettyPrinter(env);
 		printer.calculate(cu, toBePrinted);
 
 		return new ByteArrayInputStream(printer.getResult().toString().getBytes());
