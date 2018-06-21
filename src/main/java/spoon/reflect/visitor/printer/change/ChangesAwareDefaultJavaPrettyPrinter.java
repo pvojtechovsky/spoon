@@ -38,22 +38,30 @@ import spoon.reflect.visitor.TokenWriter;
 public class ChangesAwareDefaultJavaPrettyPrinter extends DefaultJavaPrettyPrinter {
 
 	private final MutableTokenWriter mutableTokenWriter;
-	private final ChangeCollector changeCollector;
+	private ChangeCollector changeCollector;
 	private final Deque<SourceFragmentContext> sourceFragmentContextStack = new ArrayDeque<>();
+	private final Environment env;
 
 	/**
 	 * Creates a new {@link PrettyPrinter} which copies origin sources and prints only changes.
 	 */
 	public ChangesAwareDefaultJavaPrettyPrinter(Environment env) {
 		super(env);
-		this.changeCollector = ChangeCollector.getChangeCollector(env);
-		if (this.changeCollector == null) {
-			throw new SpoonException(ChangeCollector.class.getSimpleName() + " was not attached to the Environment");
-		}
+		this.env = env;
 		//create a TokenWriter which can be configured to ignore tokens coming from DJPP
 		mutableTokenWriter = new MutableTokenWriter(env);
 		//wrap that TokenWriter to listen on all incoming events and set wrapped version to DJPP
 		setPrinterTokenWriter(createTokenWriterListener(mutableTokenWriter));
+	}
+
+	private ChangeCollector getChangeCollector() {
+		if (this.changeCollector == null) {
+			this.changeCollector = ChangeCollector.getChangeCollector(env);
+			if (this.changeCollector == null) {
+				throw new SpoonException(ChangeCollector.class.getSimpleName() + " was not attached to the Environment");
+			}
+		}
+		return this.changeCollector;
 	}
 
 	/**
@@ -183,7 +191,7 @@ public class ChangesAwareDefaultJavaPrettyPrinter extends DefaultJavaPrettyPrint
 		}
 		//it is not muted yet, so this element or any sibling is modified
 		//detect SourceFragments of element and whether they are modified or not
-		SourceFragment rootFragmentOfElement = getSourceFragmentsOfElementUsableForPrintingOfOriginCode(changeCollector, element);
+		SourceFragment rootFragmentOfElement = getSourceFragmentsOfElementUsableForPrintingOfOriginCode(getChangeCollector(), element);
 		if (rootFragmentOfElement == null) {
 			//we have no origin sources or this element has one source fragment only and it is modified. Use normal printing
 			sourceFragmentContextStack.push(SourceFragmentContextNormal.EMPTY_FRAGMENT_CONTEXT);
