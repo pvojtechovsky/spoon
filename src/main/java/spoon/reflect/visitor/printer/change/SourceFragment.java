@@ -250,6 +250,8 @@ public class SourceFragment  {
 								addChild(otherFragment);
 								return otherFragment;
 							}
+                            addChild(otherFragment);
+                            return otherFragment;
 						}
 						//the source position of child element is not included in source position of parent element
 						//I (Pavel) am not sure how to handle it, so let's wait until it happens...
