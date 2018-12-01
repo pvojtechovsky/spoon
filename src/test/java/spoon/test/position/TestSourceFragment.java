@@ -19,6 +19,7 @@ package spoon.test.position;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -38,6 +39,8 @@ import spoon.reflect.code.CtLocalVariable;
 import spoon.reflect.code.CtNewClass;
 import spoon.reflect.cu.CompilationUnit;
 import spoon.reflect.cu.SourcePosition;
+import spoon.reflect.declaration.CtClass;
+import spoon.reflect.declaration.CtCompilationUnit;
 import spoon.reflect.declaration.CtElement;
 import spoon.reflect.declaration.CtType;
 import spoon.reflect.factory.Factory;
@@ -205,6 +208,57 @@ public class TestSourceFragment {
 		checkElementFragments(((CtAssignment)foo.getMethodsByName("m5").get(0).getBody().getStatement(0)).getAssignment(),"7.2");
 				 
 	}
+	
+	@Test
+	public void testSourceFragmentsOfCompilationUnit() throws Exception {
+		//contract: SourceFragments of compilation unit children like, package declaration, imports, types
+		final Launcher launcher = new Launcher();
+		launcher.getEnvironment().setNoClasspath(false);
+		launcher.getEnvironment().setCommentEnabled(true);
+		SpoonModelBuilder comp = launcher.createCompiler();
+		comp.addInputSources(SpoonResourceHelper.resources("./src/test/java/" + FooSourceFragments.class.getName().replace('.', '/') + ".java"));
+		comp.build();
+		Factory f = comp.getFactory();
+		
+		final CtType<?> foo = f.Type().get(FooSourceFragments.class);
+		CtCompilationUnit compilationUnit = foo.getPosition().getCompilationUnit();
+		
+		ElementSourceFragment fragment = compilationUnit.getOriginalSourceFragment();
+		List<SourceFragment> children = fragment.getChildrenFragments();
+		assertEquals(11, children.size());
+		assertEquals("/**\n" + 
+				" * Javadoc at top of file\n" + 
+				" */", children.get(0).getSourceCode());
+		assertEquals("\n", children.get(1).getSourceCode());
+		assertEquals("/* comment before package declaration*/\n" + 
+				"package spoon.test.position.testclasses;", children.get(2).getSourceCode());
+		assertEquals("\n\n", children.get(3).getSourceCode());
+		assertEquals("/*\n" + 
+				" * Comment before import\n" + 
+				" */\n" + 
+				"import java.lang.Deprecated;", children.get(4).getSourceCode());
+		assertEquals("\n\n", children.get(5).getSourceCode());
+		assertEquals("import java.lang.Class;", children.get(6).getSourceCode());
+		assertEquals("\n\n", children.get(7).getSourceCode());
+		assertTrue(((ElementSourceFragment) children.get(8)).getElement() instanceof CtClass);
+		assertStartsWith("/*\n" + 
+				" * Comment before type\n" + 
+				" */\n" + 
+				"public class FooSourceFragments", children.get(8).getSourceCode());
+		assertEndsWith("//after last type member\n}", children.get(8).getSourceCode());
+		assertEquals("\n\n", children.get(9).getSourceCode());
+		assertEquals("//comment at the end of file", children.get(10).getSourceCode());
+	}
+	
+
+	private void assertStartsWith(String expectedPrefix, String real) {
+		assertEquals(expectedPrefix, real.substring(0, Math.min(expectedPrefix.length(), real.length())));
+	}
+
+	private void assertEndsWith(String expectedSuffix, String real) {
+		int len = real.length();
+		assertEquals(expectedSuffix, real.substring(Math.max(0, len - expectedSuffix.length()), len));
+	}
 
 	@Test
 	public void testSourceFragmentsOfFieldAccess() throws Exception {
@@ -339,14 +393,14 @@ public class TestSourceFragment {
 			if (item instanceof String[]) {
 				return "group("+Arrays.asList((String[]) item).toString() + ")";
 			}
-			return item;
-		}).collect(Collectors.toList()), groupedChildrenFragments.stream().map(item -> {
+			return "\"" + item.toString() + "\"";
+		}).collect(Collectors.joining(";")), groupedChildrenFragments.stream().map(item -> {
 			if (item instanceof CollectionSourceFragment) {
 				CollectionSourceFragment csf = (CollectionSourceFragment) item;
 				return "group("+ toCodeStrings(csf.getItems()).toString() + ")";
 			}
-			return item.getSourceCode();
-		}).collect(Collectors.toList()));
+			return "\"" + item.getSourceCode() + "\"";
+		}).collect(Collectors.joining(";")));
 	}
 	
 	private static List<String> toCodeStrings(List<SourceFragment> csf) {
