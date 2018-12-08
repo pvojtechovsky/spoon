@@ -38,7 +38,7 @@ public class FixMethodReturnTypes {
 		launcher.getEnvironment().setPrettyPrinterCreator(() -> {
 			return new SniperJavaPrettyPrinter(launcher.getEnvironment()); }
 		);
-		launcher.getEnvironment().setNoClasspath(false);
+		launcher.getEnvironment().setNoClasspath(true);
 		launcher.getEnvironment().setCommentEnabled(true);
 		launcher.getEnvironment().setAutoImports(true);
 //		// Spoon model interfaces
