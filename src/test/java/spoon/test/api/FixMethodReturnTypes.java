@@ -17,14 +17,19 @@ import java.util.stream.Collectors;
 
 import spoon.Launcher;
 import spoon.metamodel.Metamodel;
+import spoon.processing.Processor;
 import spoon.reflect.code.CtInvocation;
 import spoon.reflect.code.CtReturn;
+import spoon.reflect.declaration.CtCompilationUnit;
 import spoon.reflect.declaration.CtMethod;
 import spoon.reflect.declaration.CtType;
 import spoon.reflect.declaration.CtTypeParameter;
 import spoon.reflect.factory.Factory;
 import spoon.reflect.reference.CtTypeParameterReference;
 import spoon.reflect.reference.CtTypeReference;
+import spoon.reflect.visitor.ForceImportProcessor;
+import spoon.reflect.visitor.ImportValidator;
+import spoon.reflect.visitor.NameConflictValidator;
 import spoon.reflect.visitor.filter.TypeFilter;
 import spoon.support.compiler.FileSystemFolder;
 import spoon.support.modelobs.ChangeCollector;
@@ -36,8 +41,19 @@ public class FixMethodReturnTypes {
 	public static void main(String[] args) {
 		final Launcher launcher = new Launcher();
 		launcher.getEnvironment().setPrettyPrinterCreator(() -> {
-			return new SniperJavaPrettyPrinter(launcher.getEnvironment()); }
-		);
+			SniperJavaPrettyPrinter printer = new SniperJavaPrettyPrinter(launcher.getEnvironment());
+			printer.setPreprocessors(Collections.unmodifiableList(Arrays.<Processor<CtCompilationUnit>>asList(
+					//try to import as much types as possible
+					new ForceImportProcessor(),
+					//remove unused imports first. Do not add new imports at time when conflicts are not resolved
+					new ImportValidator().setCanAddImports(false),
+					//solve conflicts, the current imports are relevant too
+					new NameConflictValidator(),
+					//compute final imports
+					new ImportValidator()
+				)));
+			return printer;
+		});
 		launcher.getEnvironment().setNoClasspath(true);
 		launcher.getEnvironment().setCommentEnabled(true);
 		launcher.getEnvironment().setAutoImports(true);
