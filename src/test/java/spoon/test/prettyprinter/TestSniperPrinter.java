@@ -28,12 +28,13 @@ import spoon.reflect.declaration.CtType;
 import spoon.reflect.declaration.ModifierKind;
 import spoon.reflect.factory.Factory;
 import spoon.reflect.reference.CtTypeReference;
+import spoon.reflect.visitor.ForceImportProcessor;
 import spoon.reflect.visitor.ImportValidator;
 import spoon.reflect.visitor.NameConflictValidator;
+import spoon.reflect.visitor.PrettyPrinter;
 import spoon.support.modelobs.ChangeCollector;
 import spoon.support.sniper.SniperJavaPrettyPrinter;
-import spoon.test.position.testclasses.Kokos;
-import spoon.test.prettyprinter.testclasses.CtActualTypeContainer;
+import spoon.test.prettyprinter.testclasses.Kuskus;
 import spoon.test.prettyprinter.testclasses.ToBeChanged;
 
 import java.io.File;
@@ -45,6 +46,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -173,10 +175,24 @@ public class TestSniperPrinter {
 	@Test
 	public void testPrintTypeAnnotationAfterChangeOfTypeMember() {
 		//contract: ... TODO ...
-		testSniper(CtActualTypeContainer.class.getName(), type -> {
+		Launcher launcher = new Launcher();
+		testSniper(launcher, Kuskus.class.getName(), () -> {
+			SniperJavaPrettyPrinter printer = new SniperJavaPrettyPrinter(launcher.getEnvironment());
+			printer.setPreprocessors(Collections.unmodifiableList(Arrays.<Processor<CtCompilationUnit>>asList(
+					new ForceImportProcessor(),
+					//remove unused imports first. Do not add new imports at time when conflicts are not resolved
+					new ImportValidator().setCanAddImports(false),
+					//solve conflicts, the current imports are relevant too
+					new NameConflictValidator(),
+					//compute final imports
+					new ImportValidator()
+				)));
+			return printer;
+		}, type -> {
 			//change the model
 			CtMethod<?> m = type.getMethodsByName("setActualTypeArguments").get(0);
-			m.setType((CtTypeReference) m.getFactory().Type().createReference(CtActualTypeContainer.class));
+			m.setFormalCtTypeParameters(Collections.emptyList());
+			m.setType((CtTypeReference) m.getFactory().Type().createReference(Kuskus.class));
 		}, (type, printed) -> {
 			// everything is the same but method formal type params and return type
 			assertIsPrintedWithExpectedChanges(type, printed, "\\Q<T extends CtActualTypeContainer> T setActualTypeArguments\\E", "CtActualTypeContainer setActualTypeArguments");
@@ -193,8 +209,7 @@ public class TestSniperPrinter {
 	 */
 	private void testSniper(String testClass, Consumer<CtType<?>> transformation, BiConsumer<CtType<?>, String> resultChecker) {
 		Launcher launcher = new Launcher();
-		launcher.addInputResource(getResourcePath(testClass));
-		launcher.getEnvironment().setPrettyPrinterCreator(() -> {
+		testSniper(launcher, testClass, () -> {
 			SniperJavaPrettyPrinter printer = new SniperJavaPrettyPrinter(launcher.getEnvironment());
 			printer.setPreprocessors(Collections.unmodifiableList(Arrays.<Processor<CtCompilationUnit>>asList(
 					//remove unused imports first. Do not add new imports at time when conflicts are not resolved
@@ -205,7 +220,12 @@ public class TestSniperPrinter {
 					new ImportValidator()
 				)));
 			return printer;
-		});
+		}, transformation, resultChecker);
+	}
+
+	private void testSniper(Launcher launcher, String testClass, Supplier<PrettyPrinter> printerCreator, Consumer<CtType<?>> transformation, BiConsumer<CtType<?>, String> resultChecker) {
+		launcher.addInputResource(getResourcePath(testClass));
+		launcher.getEnvironment().setPrettyPrinterCreator(printerCreator);
 		launcher.buildModel();
 		Factory f = launcher.getFactory();
 
