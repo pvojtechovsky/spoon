@@ -33,6 +33,7 @@ import spoon.reflect.visitor.NameConflictValidator;
 import spoon.support.modelobs.ChangeCollector;
 import spoon.support.sniper.SniperJavaPrettyPrinter;
 import spoon.test.position.testclasses.Kokos;
+import spoon.test.prettyprinter.testclasses.CtActualTypeContainer;
 import spoon.test.prettyprinter.testclasses.ToBeChanged;
 
 import java.io.File;
@@ -172,13 +173,13 @@ public class TestSniperPrinter {
 	@Test
 	public void testPrintTypeAnnotationAfterChangeOfTypeMember() {
 		//contract: ... TODO ...
-		testSniper(Kokos.class.getName(), type -> {
+		testSniper(CtActualTypeContainer.class.getName(), type -> {
 			//change the model
-			CtMethod<?> m = type.getMethodsByName("method").get(0);
-			m.setType((CtTypeReference) m.getFactory().Type().longType());
+			CtMethod<?> m = type.getMethodsByName("setActualTypeArguments").get(0);
+			m.setType((CtTypeReference) m.getFactory().Type().createReference(CtActualTypeContainer.class));
 		}, (type, printed) -> {
 			// everything is the same but method formal type params and return type
-			assertIsPrintedWithExpectedChanges(type, printed, "\\QString method()\\E", "java.lang.Long method()");
+			assertIsPrintedWithExpectedChanges(type, printed, "\\Q<T extends CtActualTypeContainer> T setActualTypeArguments\\E", "CtActualTypeContainer setActualTypeArguments");
 		});
 	}
 
