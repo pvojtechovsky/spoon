@@ -32,6 +32,7 @@ import spoon.reflect.visitor.ImportValidator;
 import spoon.reflect.visitor.NameConflictValidator;
 import spoon.support.modelobs.ChangeCollector;
 import spoon.support.sniper.SniperJavaPrettyPrinter;
+import spoon.test.position.testclasses.Kokos;
 import spoon.test.prettyprinter.testclasses.ToBeChanged;
 
 import java.io.File;
@@ -168,6 +169,19 @@ public class TestSniperPrinter {
 		});
 	}
 
+	@Test
+	public void testPrintTypeAnnotationAfterChangeOfTypeMember() {
+		//contract: ... TODO ...
+		testSniper(Kokos.class.getName(), type -> {
+			//change the model
+			CtMethod<?> m = type.getMethodsByName("method").get(0);
+			m.setType((CtTypeReference) m.getFactory().Type().longType());
+		}, (type, printed) -> {
+			// everything is the same but method formal type params and return type
+			assertIsPrintedWithExpectedChanges(type, printed, "\\QString method()\\E", "java.lang.Long method()");
+		});
+	}
+
 	/**
 	 * 1) Runs spoon using sniper mode,
 	 * 2) runs `typeChanger` to modify the code,
@@ -194,7 +208,7 @@ public class TestSniperPrinter {
 		launcher.buildModel();
 		Factory f = launcher.getFactory();
 
-		final CtClass<?> ctClass = f.Class().get(testClass);
+		final CtType<?> ctClass = f.Type().get(testClass);
 
 		//change the model
 		transformation.accept(ctClass);
