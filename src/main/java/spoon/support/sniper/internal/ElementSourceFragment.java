@@ -304,6 +304,11 @@ public class ElementSourceFragment implements SourceFragment {
 		} else {
 			firstChild = firstChild.add(fragment);
 		}
+		if (fragment.getElement() instanceof CtElement) {
+			if (element != ((CtElement) fragment.getElement()).getParent() && !(element instanceof CtCompilationUnit)) {
+				throw new SpoonException("Inconsistent child fragment " + fragment.getElement().getClass() + " has unexpected parent " + element.getClass());
+			}
+		}
 	}
 
 	private void addNextSibling(ElementSourceFragment sibling) {
