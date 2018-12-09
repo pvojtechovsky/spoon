@@ -30,6 +30,7 @@ import org.eclipse.jdt.internal.compiler.ast.FieldDeclaration;
 import org.eclipse.jdt.internal.compiler.ast.Initializer;
 import org.eclipse.jdt.internal.compiler.ast.Javadoc;
 import org.eclipse.jdt.internal.compiler.ast.MethodDeclaration;
+import org.eclipse.jdt.internal.compiler.ast.QualifiedAllocationExpression;
 import org.eclipse.jdt.internal.compiler.ast.TypeDeclaration;
 import org.eclipse.jdt.internal.compiler.ast.TypeParameter;
 import org.eclipse.jdt.internal.compiler.ast.TypeReference;
@@ -40,6 +41,7 @@ import spoon.reflect.code.CtCatch;
 import spoon.reflect.code.CtCatchVariable;
 import spoon.reflect.code.CtExpression;
 import spoon.reflect.code.CtForEach;
+import spoon.reflect.code.CtNewClass;
 import spoon.reflect.code.CtStatement;
 import spoon.reflect.code.CtStatementList;
 import spoon.reflect.code.CtTry;
@@ -270,26 +272,44 @@ public class PositionBuilder {
 			int bodyStart = typeDeclaration.bodyStart;
 			int bodyEnd = typeDeclaration.bodyEnd;
 
-			if (modifiersSourceStart <= 0) {
-				modifiersSourceStart = declarationSourceStart;
-			}
-			//look for start of first keyword before the type keyword e.g. "class". `sourceStart` points at first char of type name
-			int modifiersSourceEnd = findPrevNonWhitespace(contents, modifiersSourceStart - 1,
-										findPrevWhitespace(contents, modifiersSourceStart - 1,
-											findPrevNonWhitespace(contents, modifiersSourceStart - 1, sourceStart - 1)));
-			if (e instanceof CtModifiable) {
-				setModifiersPosition((CtModifiable) e, modifiersSourceStart, modifiersSourceEnd);
-			}
-			if (modifiersSourceEnd < modifiersSourceStart) {
-				//there is no modifier
-				modifiersSourceEnd = modifiersSourceStart - 1;
-			}
+			int modifiersSourceEnd;
 			if (typeDeclaration.name.length == 0) {
-				//it is anonymous type, there is no name start/end
-				sourceEnd = sourceStart - 1;
-				if (contents[sourceStart] == '{') {
+				//it is anonymous type
+				if (contents[bodyStart] != '{') {
+					//adjust bodyStart of annonymous type in definition of enum value
+					if (bodyStart < 1 || contents[bodyStart - 1] != '{') {
+						throw new SpoonException("Cannot found body start at offset " + bodyStart + " of annonymous class with sources:\n" + new String(contents));
+					}
+					bodyStart--;
+				}
+				declarationSourceStart = modifiersSourceStart = sourceStart = bodyStart;
+				if (contents[bodyEnd] != '}') {
 					//adjust bodyEnd of annonymous type in definition of enum value
+					if (contents[bodyEnd + 1] != '}') {
+						throw new SpoonException("Cannot found body end at offset " + bodyEnd + " of annonymous class with sources:\n" + new String(contents));
+					}
 					bodyEnd++;
+				}
+				declarationSourceEnd = bodyEnd;
+				//there is no name of annonymous class
+				sourceEnd = sourceStart - 1;
+				//there are no modifiers of annonymous class
+				modifiersSourceEnd = modifiersSourceStart - 1;
+				bodyStart++;
+			} else {
+				if (modifiersSourceStart <= 0) {
+					modifiersSourceStart = declarationSourceStart;
+				}
+				//look for start of first keyword before the type keyword e.g. "class". `sourceStart` points at first char of type name
+				modifiersSourceEnd = findPrevNonWhitespace(contents, modifiersSourceStart - 1,
+											findPrevWhitespace(contents, modifiersSourceStart - 1,
+												findPrevNonWhitespace(contents, modifiersSourceStart - 1, sourceStart - 1)));
+				if (e instanceof CtModifiable) {
+					setModifiersPosition((CtModifiable) e, modifiersSourceStart, modifiersSourceEnd);
+				}
+				if (modifiersSourceEnd < modifiersSourceStart) {
+					//there is no modifier
+					modifiersSourceEnd = modifiersSourceStart - 1;
 				}
 			}
 
@@ -383,6 +403,11 @@ public class PositionBuilder {
 				sourceStart = findNextNonWhitespace(contents, sourceEnd, sourceStart);
 				//2) move to beginning of enum construction
 				sourceStart += fieldDeclaration.name.length;
+			} else if (node instanceof QualifiedAllocationExpression && e instanceof CtNewClass) {
+				QualifiedAllocationExpression qualifiedAllocationExpression = (QualifiedAllocationExpression) node;
+				CtNewClass<?> newClass = (CtNewClass<?>) e;
+				TypeDeclaration typeDecl = qualifiedAllocationExpression.anonymousType;
+				newClass.getExecutable().setPosition(cf.createSourcePosition(cu, typeDecl.sourceStart, typeDecl.sourceEnd, lineSeparatorPositions));
 			}
 		} else if (node instanceof CaseStatement) {
 			sourceEnd = findNextNonWhitespace(contents, contents.length - 1, sourceEnd + 1);
@@ -537,6 +562,9 @@ public class PositionBuilder {
 				modifier.setPosition(cf.createSourcePosition(cu, o1, o2 - 1, jdtTreeBuilder.getContextBuilder().getCompilationUnitLineSeparatorPositions()));
 			}
 			start = o2;
+		}
+		if (explicitModifiersByName.size() > 0) {
+			throw new SpoonException("Position of CtExtendedModifiers: [" + String.join(", ", explicitModifiersByName.keySet()) + "] not found in " + String.valueOf(contents, start, end - start));
 		}
 	}
 
@@ -759,6 +787,21 @@ public class PositionBuilder {
 			}
 		}
 		return -1;
+	}
+
+	/**
+	 * @return true if `content` on offset `off` equals value of `expected` string
+	 */
+	static boolean contentEquals(char[] content, int off, String expected) {
+		if (off + expected.length() > content.length) {
+			return false;
+		}
+		for (int i = 0; i < expected.length(); i++) {
+			if (content[off + i] != expected.charAt(i)) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	private SourcePosition handlePositionProblem(String errorMessage) {

@@ -34,6 +34,8 @@ import spoon.reflect.code.CtAssignment;
 import spoon.reflect.code.CtConstructorCall;
 import spoon.reflect.code.CtFieldRead;
 import spoon.reflect.code.CtFieldWrite;
+import spoon.reflect.code.CtLocalVariable;
+import spoon.reflect.code.CtNewClass;
 import spoon.reflect.cu.CompilationUnit;
 import spoon.reflect.cu.SourcePosition;
 import spoon.reflect.declaration.CtElement;
@@ -45,6 +47,7 @@ import spoon.support.sniper.internal.CollectionSourceFragment;
 import spoon.support.sniper.internal.ElementSourceFragment;
 import spoon.support.reflect.cu.CompilationUnitImpl;
 import spoon.support.reflect.cu.position.SourcePositionImpl;
+import spoon.test.position.testclasses.AnnonymousClassNewIface;
 import spoon.test.position.testclasses.FooField;
 import spoon.test.position.testclasses.FooSourceFragments;
 import spoon.test.position.testclasses.NewArrayList;
@@ -258,6 +261,51 @@ public class TestSourceFragment {
 		assertEquals("ArrayList", children2.get(0).getSourceCode());
 		assertEquals("<", children2.get(1).getSourceCode());
 		assertEquals(">", children2.get(2).getSourceCode());
+	}
+
+	@Test
+	public void testSourceFragmentsOfNewAnnonymousClass() throws Exception {
+		//contract: it is possible to build source fragment of new anonymous class
+		final CtType<?> type = ModelUtils.buildClass(AnnonymousClassNewIface.class);
+		CtLocalVariable<?> locVar =  (CtLocalVariable<?>) type.getMethodsByName("m").get(0).getBody().getStatements().get(0);
+		CtNewClass<?> newClass = (CtNewClass<?>) locVar.getDefaultExpression();
+		{
+			ElementSourceFragment newClassSF = newClass.getOriginalSourceFragment();
+			List<SourceFragment> children = newClassSF.getChildrenFragments();
+			assertEquals(5, children.size());
+			assertEquals("new", children.get(0).getSourceCode());
+			assertEquals(" ", children.get(1).getSourceCode());
+			assertEquals("Consumer<Set<?>>()", children.get(2).getSourceCode());
+			assertEquals(" ", children.get(3).getSourceCode());
+			assertEquals("{" + 
+					"			@Override" + 
+					"			public void accept(Set<?> t) {" + 
+					"			}" + 
+					"		}", children.get(4).getSourceCode().replaceAll("\\r|\\n", ""));
+		}
+		{
+			ElementSourceFragment newClassExecSF = newClass.getExecutable().getOriginalSourceFragment();
+			List<SourceFragment> children = newClassExecSF.getChildrenFragments();
+			assertEquals(3, children.size());
+			assertEquals("Consumer<Set<?>>", children.get(0).getSourceCode());
+			assertEquals("(", children.get(1).getSourceCode());
+			assertEquals(")", children.get(2).getSourceCode());
+		}
+		{
+			ElementSourceFragment newAnnClassSF = newClass.getAnonymousClass().getOriginalSourceFragment();
+			List<SourceFragment> children = newAnnClassSF.getChildrenFragments();
+			//TODO should contain only body (no constructor call) 
+			assertEquals(5, children.size());
+			assertEquals("{", children.get(0).getSourceCode());
+			assertEquals("			", children.get(1).getSourceCode().replaceAll("\\r|\\n", ""));
+			assertEquals("@Override" + 
+					"			public void accept(Set<?> t) {" + 
+					"			}", children.get(2).getSourceCode().replaceAll("\\r|\\n", ""));
+			assertEquals("		", children.get(3).getSourceCode().replaceAll("\\r|\\n", ""));
+			assertEquals("}", children.get(4).getSourceCode());
+			
+			
+		}
 	}
 
 	private void checkElementFragments(CtElement ele, Object... expectedFragments) {
