@@ -268,7 +268,7 @@ abstract class AbstractSourceFragmentContext implements SourceFragmentContext {
 	 * @return index of first token which fits to {@link PrinterEvent} or -1 if not found
 	 */
 	protected int findIndexOfNextChildTokenOfEvent(PrinterEvent event) {
-		CtRole role = event.getRole();
+		CtRole role = getRoleInParent(event);
 		if (role != null) {
 			if (role == CtRole.COMMENT) {
 				return findIndexOfNextChildTokenOfElement(event.getElement());
@@ -284,6 +284,46 @@ abstract class AbstractSourceFragmentContext implements SourceFragmentContext {
 		} else {
 			throw new SpoonException("Unexpected PrintEvent: " + event.getClass());
 		}
+	}
+
+	private CtRole getRoleInParent(PrinterEvent event) {
+		CtElement parent = getParentElement();
+		SourcePositionHolder sph = event.getElement();
+		if (sph instanceof CtElement) {
+			CtElement element = (CtElement) sph;
+			while (element.isParentInitialized()) {
+				if (element.getParent() == parent) {
+					if (element == sph) {
+						//the element of event is child of parent
+						//we can return role from event
+						return event.getRole();
+					}
+					return element.getRoleInParent();
+				}
+				element = element.getParent();
+			}
+		}
+		return event.getRole();
+	}
+
+	private CtElement getParentElement() {
+		CtElement parent = null;
+		for (SourceFragment sourceFragment : childFragments) {
+			if (sourceFragment instanceof ElementSourceFragment) {
+				ElementSourceFragment esf = (ElementSourceFragment) sourceFragment;
+				if (esf.getElement() instanceof CtElement) {
+					CtElement fragmentParent = ((CtElement) esf.getElement()).getParent();
+					if (parent == null) {
+						parent = fragmentParent;
+					} else {
+						if (parent != fragmentParent) {
+							throw new SpoonException("Unexpected source fragment parent");
+						}
+					}
+				}
+			}
+		}
+		return parent;
 	}
 
 	/**
