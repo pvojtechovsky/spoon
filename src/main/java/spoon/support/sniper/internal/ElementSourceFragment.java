@@ -30,6 +30,8 @@ import spoon.reflect.meta.RoleHandler;
 import spoon.reflect.meta.impl.RoleHandlerHelper;
 import spoon.reflect.path.CtRole;
 import spoon.reflect.visitor.EarlyTerminatingScanner;
+import spoon.reflect.visitor.chain.CtScannerListener;
+import spoon.reflect.visitor.chain.ScanningMode;
 import spoon.support.Experimental;
 import spoon.support.reflect.CtExtendedModifier;
 import spoon.support.reflect.cu.position.SourcePositionImpl;
@@ -173,6 +175,13 @@ public class ElementSourceFragment implements SourceFragment {
 			}
 		}
 		.setVisitCompilationUnitContent(true)
+		//skip implicit elements
+		.setListener(new CtScannerListener() {
+			@Override
+			public ScanningMode enter(CtRole role, CtElement element) {
+				return element.isImplicit() ? ScanningMode.SKIP_ALL : ScanningMode.NORMAL;
+			}
+		})
 		.scan(element.getRoleInParent(), element);
 	}
 	/**
@@ -305,7 +314,8 @@ public class ElementSourceFragment implements SourceFragment {
 			firstChild = firstChild.add(fragment);
 		}
 		if (fragment.getElement() instanceof CtElement) {
-			if (element != ((CtElement) fragment.getElement()).getParent() && !(element instanceof CtCompilationUnit)) {
+			CtElement fragmentEleParent = ((CtElement) fragment.getElement()).getParent();
+			if (element != fragmentEleParent && !(element instanceof CtCompilationUnit) && fragmentEleParent.getPosition().isValidPosition()) {
 				throw new SpoonException("Inconsistent child fragment " + fragment.getElement().getClass() + " has unexpected parent " + element.getClass());
 			}
 		}
