@@ -403,12 +403,12 @@ public class PositionBuilder {
 				sourceStart = findNextNonWhitespace(contents, sourceEnd, sourceStart);
 				//2) move to beginning of enum construction
 				sourceStart += fieldDeclaration.name.length;
-			} else if (node instanceof QualifiedAllocationExpression && e instanceof CtNewClass) {
+			}/* else if (node instanceof QualifiedAllocationExpression && e instanceof CtNewClass) {
 				QualifiedAllocationExpression qualifiedAllocationExpression = (QualifiedAllocationExpression) node;
 				CtNewClass<?> newClass = (CtNewClass<?>) e;
 				TypeDeclaration typeDecl = qualifiedAllocationExpression.anonymousType;
 				newClass.getExecutable().setPosition(cf.createSourcePosition(cu, typeDecl.sourceStart, typeDecl.sourceEnd, lineSeparatorPositions));
-			}
+			}*/
 		} else if (node instanceof CaseStatement) {
 			sourceEnd = findNextNonWhitespace(contents, contents.length - 1, sourceEnd + 1);
 			if (sourceEnd < 0) {
