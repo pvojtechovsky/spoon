@@ -36,6 +36,7 @@ import spoon.reflect.code.CtAssignment;
 import spoon.reflect.code.CtConstructorCall;
 import spoon.reflect.code.CtFieldRead;
 import spoon.reflect.code.CtFieldWrite;
+import spoon.reflect.code.CtIf;
 import spoon.reflect.code.CtInvocation;
 import spoon.reflect.code.CtLocalVariable;
 import spoon.reflect.code.CtNewClass;
@@ -55,6 +56,7 @@ import spoon.support.reflect.cu.position.SourcePositionImpl;
 import spoon.test.position.testclasses.AnnonymousClassNewIface;
 import spoon.test.position.testclasses.Expressions;
 import spoon.test.position.testclasses.FooField;
+import spoon.test.position.testclasses.FooIfElse;
 import spoon.test.position.testclasses.FooSourceFragments;
 import spoon.test.position.testclasses.NewArrayList;
 import spoon.testing.utils.ModelUtils;
@@ -364,6 +366,21 @@ public class TestSourceFragment {
 			assertEquals("}", children.get(4).getSourceCode());
 			
 			
+		}
+	}
+
+	@Test
+	public void testSourceFragmentOfIfElseIf() throws Exception {
+		//contract: the source fragments of `if else if` statements
+		final CtType<?> foo = buildClass(FooIfElse.class);
+		CtIf ifStatement = (CtIf) foo.getMethodsByName("m").get(0).getBody().getStatement(0);
+		{
+			ElementSourceFragment sf = ifStatement.getOriginalSourceFragment();
+			assertEquals("x > 0", sf.getFirstChild().getSourceCode());
+			assertEquals("{ \n" + 
+					"			this.getClass();\n" + 
+					"		}", sf.getFirstChild().getNextSibling().getSourceCode());
+			assertEquals("", sf.getFirstChild().getNextSibling().getNextSibling().getSourceCode());
 		}
 	}
 

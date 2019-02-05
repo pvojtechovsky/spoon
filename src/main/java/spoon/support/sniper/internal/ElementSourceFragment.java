@@ -175,13 +175,14 @@ public class ElementSourceFragment implements SourceFragment {
 			}
 		}
 		.setVisitCompilationUnitContent(true)
+		/* CtBlock can be implicit but contains non implicit elements, so we cannot skip it.
 		//skip implicit elements
 		.setListener(new CtScannerListener() {
 			@Override
 			public ScanningMode enter(CtRole role, CtElement element) {
 				return element.isImplicit() ? ScanningMode.SKIP_ALL : ScanningMode.NORMAL;
 			}
-		})
+		})*/
 		.scan(element.getRoleInParent(), element);
 	}
 	/**
