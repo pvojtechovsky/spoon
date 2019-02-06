@@ -316,14 +316,39 @@ abstract class AbstractSourceFragmentContext implements SourceFragmentContext {
 					if (parent == null) {
 						parent = fragmentParent;
 					} else {
-						if (parent != fragmentParent) {
+						CtElement commonParent = getCommonParent(parent, fragmentParent);
+						if (commonParent == null) {
 							throw new SpoonException("Unexpected source fragment parent");
 						}
+						parent = commonParent;
 					}
 				}
 			}
 		}
 		return parent;
+	}
+
+	private CtElement getCommonParent(CtElement e1, CtElement e2) {
+		CtElement p1 = e1, p2 = e2;
+		while (p1 != null && p2 != null) {
+			if (e1 == p2) {
+				return e1;
+			}
+			if (e2 == p1) {
+				return e2;
+			}
+			if (p1.isParentInitialized()) {
+				p1 = p1.getParent();
+			} else {
+				p1 = null;
+			}
+			if (p2.isParentInitialized()) {
+				p2 = p2.getParent();
+			} else {
+				p2 = null;
+			}
+		}
+		return null;
 	}
 
 	/**
